@@ -47,7 +47,9 @@
 
 ## 見る
 
-GitHub Pages（`main` の `/docs`）で配信しています。手元で見るには：
+**https://dwg7.unopengis.org/doverture/**（GitHub Pages、`main` の `/docs`）
+
+手元で見るには：
 
 ```bash
 ./scripts/serve.py          # http://localhost:8779/
@@ -83,6 +85,11 @@ cd spatialid && npm test && npm run build
 
 `npm test` は 20 件。ブラウザを使わずに、**実際に配る PMTiles の中身**で塗りの式を
 評価し、ビルド成果物が参照するファイルの存在を確かめます。
+
+なお、**GitHub Pages からの PMTiles 提供は不安定になることが知られています**（PMTiles は
+HTTP Range リクエストで部分読みするため）。このプロジェクトでは承知のうえで Pages を
+使っています。失敗した場合、地図パネルは黙って白くなるのではなく、**画面上部に赤い帯で
+何が失敗したかを出します**。
 
 ## 公開しているもの・していないもの
 
