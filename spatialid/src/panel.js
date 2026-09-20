@@ -73,15 +73,17 @@ export function createPanel(container, opts = {}) {
     el('h1', 'dvt-title', 'doverture<span>北海道 z14 空間IDセル</span>'),
     el('details', 'dvt-howto', `<summary>使い方</summary>
       <table>
-        <tr><th>ズーム</th><th>セル</th><th>できること</th></tr>
-        <tr><td>z5–7</td><td>z7–9（14–56km）</td><td>全道の分布</td></tr>
-        <tr><td>z8–11</td><td>z10–13（3.5–28km）</td><td>振興局・市町村の傾向</td></tr>
-        <tr><td>z12–13</td><td>z14（1.8km）</td><td>セルを見て内訳</td></tr>
-        <tr><td>z12–16</td><td>z14（拡大）</td><td>写真で土地の様子を確認</td></tr>
-        <tr><td>z17–19</td><td>z14（拡大）</td><td><b>建物の輪郭</b>で1棟ずつ突き合わせ</td></tr>
+        <tr><th>ズーム</th><th>セルの1辺</th><th>できること</th></tr>
+        <tr><td>z5–7</td><td>1–4px</td><td>全道の地肌として分布を読む</td></tr>
+        <tr><td>z8–10</td><td>8–32px</td><td>振興局・市町村の傾向</td></tr>
+        <tr><td>z11–13</td><td>64–256px</td><td>セルを見て内訳</td></tr>
+        <tr><td>z14–16</td><td>512px〜</td><td>写真で土地の様子を確認</td></tr>
+        <tr><td>z17–19</td><td>—</td><td><b>建物の輪郭</b>で1棟ずつ突き合わせ</td></tr>
       </table>
-      <p><b>どのズームでもセルは約64px</b>——空間IDの階層をそのままタイルの階層に
-      使っているので、引くと粗いセル、寄ると細かいセルに自動で切り替わります。<br>
+      <p><b>セルはどのズームでも z14（1辺 約1.8km）で固定</b>です。引いても足し上げ
+      ないので、<b>ズームを変えても見ている統計は変わりません</b>——模様が変われば
+      それはデータが変わったということです。引くとセルは数pxまで細かくなりますが、
+      陸を隙間なく覆うので地肌として読めます。<br>
       <b>セルの上を通るだけで数字</b>が出ます。建物ゼロのセルは既定で隠しています
       （全体の約半分）。面は<b>常に透過</b>していて、下の空中写真が透けます。</p>`)
   );
@@ -176,7 +178,9 @@ export function createPanel(container, opts = {}) {
   const updateBadge = () => {
     const z = map.getZoom();
     const { px, level, what } = zoomHint(z);
-    badge.textContent = `z${z.toFixed(1)}　セル z${level}・${Math.round(px)}px　${what}`;
+    const size = px < 10 ? px.toFixed(1) : String(Math.round(px));
+    // レベルは常に z14。ズームしても集計単位は変わらない、と毎回言い切る（D29）
+    badge.textContent = `z${z.toFixed(1)}　z${level}セル ${size}px　${what}`;
   };
   map.on('move', updateBadge);
 
@@ -221,7 +225,7 @@ export function createPanel(container, opts = {}) {
     const lv = p.lv || 14;
     readout.hidden = false;
     readout.innerHTML = `
-      <h2>${p.name || p.code}　<span style="color:var(--dvt-muted);font-weight:400">空間ID z${lv}${p.cells > 1 ? `（z14セル ${p.cells} 個ぶん）` : ''}</span></h2>
+      <h2>${p.name || p.code}　<span style="color:var(--dvt-muted);font-weight:400">空間ID z${lv}（1辺 約1.8km）</span></h2>
       <table>
         <tr><td>bvmap（国土地理院）</td><td>${(+p.bv).toLocaleString()} 件</td></tr>
         <tr><td>Overture 合計</td><td>${(+p.ov).toLocaleString()} 件</td></tr>
@@ -246,7 +250,7 @@ export function createPanel(container, opts = {}) {
       map.addLayer({ id: 'cells', type: 'fill', source: 'cells', 'source-layer': SRC_LAYER,
                      paint: { 'fill-color': '#383835', 'fill-opacity': CELL_OPACITY } });
       map.addLayer({ id: 'cells-line', type: 'line', source: 'cells', 'source-layer': SRC_LAYER,
-                     paint: { 'line-color': '#1a1a19', 'line-width': 0.4, 'line-opacity': 0.35 }, minzoom: 9 });
+                     paint: { 'line-color': '#1a1a19', 'line-width': 0.4, 'line-opacity': 0.35 }, minzoom: 11 });
       // 建物の輪郭。塗りなしの線だけ——写真の上に重ねて、実物と突き合わせるため。
       map.addLayer({
         id: 'bv-outline', type: 'line', source: 'bvmapsrc', 'source-layer': 'BldA',

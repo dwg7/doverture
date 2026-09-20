@@ -98,17 +98,25 @@ t('建物ゼロを隠すフィルタが、実タイルで全部を消さない',
   }
 });
 
-t('セルがどのズームでもサブピクセルにならない（ピラミッドの保証）', () => {
-  // かつて低ズームでセルを不透明にしていたのは、z14 セルを全ズームで描いて
-  // 1px になっていたから（D16）。ピラミッドを入れた今は比が一定になるので、
-  // 面を透過させても模様が読める。その前提をここで固定する。
-  for (let z = 4; z <= 17; z += 0.5) {
-    const { px } = zoomHint(z);
-    assert.ok(px >= 32, `z${z} でセルが ${px.toFixed(1)}px（細かすぎる）`);
+t('ズームを変えても集計単位が変わらない（D29 の保証）', () => {
+  // かつてはズームごとにセルのレベルを変えて1辺を64pxに保っていた。見た目は
+  // 安定するが、ズームするたびに別の集計単位の統計を見ることになり、模様の変化が
+  // データ由来か集計単位由来か区別できない。レベル固定をここで固定する。
+  const levels = new Set();
+  for (let z = 4; z <= 19; z += 0.5) levels.add(zoomHint(z).level);
+  assert.deepEqual([...levels], [14], `セルのレベルが動いている: ${[...levels]}`);
+  // px はズームに対して厳密に単調増加（拡大縮小しているだけ）
+  for (let z = 4; z < 19; z += 0.5) {
+    assert.ok(zoomHint(z + 0.5).px > zoomHint(z).px, `z${z} で px が増えていない`);
   }
-  assert.equal(Math.round(zoomHint(6).px), 64, 'z12 未満では 64px 一定のはず');
-  assert.equal(Math.round(zoomHint(10).px), 64);
-  assert.ok(zoomHint(16).px > zoomHint(12).px, 'z12 以降は拡大とともに大きくなる');
+  // 細かいセルほど面を濃くしないと、写真に負けて地肌が読めなくなる（D16 の教訓）
+  const cell = compile(CELL_OPACITY, NUM, 'fill-opacity');
+  for (let z = 4; z <= 19; z += 0.5) {
+    if (zoomHint(z).px < 8) {
+      assert.ok(cell.evaluate({ zoom: z }) >= 0.70,
+                `z${z} はセル ${zoomHint(z).px.toFixed(1)}px なのに面が薄い`);
+    }
+  }
 });
 
 t('面は全ズームで透過し、写真も常に見えている', () => {
