@@ -39,53 +39,8 @@ export const METRICS = [
   { key: 'osmShare', name: 'Overture に占める OSM 由来の割合',      kind: 'seq', prop: 'osmShare', stops: [40, 60, 75, 85, 95, 100], unit: '%' }
 ];
 
-/** cells.json -> GeoJSON。セルの矩形はここで (14,x,y) から組み立てる。 */
-export function toGeoJSON(doc) {
-  if (!doc || !Array.isArray(doc.cols) || !Array.isArray(doc.rows)) {
-    throw new Error('cells.json の形が想定と違います（cols / rows が要ります）');
-  }
-  const i = Object.fromEntries(doc.cols.map((c, k) => [c, k]));
-  for (const need of ['x', 'y', 'code', 'bv', 'ov', 'osm', 'eab', 'oth']) {
-    if (i[need] === undefined) throw new Error(`cells.json に列 ${need} がありません`);
-  }
-  const features = new Array(doc.rows.length);
-  for (let k = 0; k < doc.rows.length; k++) {
-    const r = doc.rows[k];
-    const x = r[i.x], y = r[i.y];
-    const bv = r[i.bv], ov = r[i.ov], osm = r[i.osm], eab = r[i.eab], oth = r[i.oth];
-    const w = x2lon(x), e = x2lon(x + 1), n = y2lat(y), s = y2lat(y + 1);
-    features[k] = {
-      type: 'Feature',
-      // 外環は反時計回り（RFC 7946）。南西 → 南東 → 北東 → 北西 の順。
-      geometry: { type: 'Polygon', coordinates: [[[w, s], [e, s], [e, n], [w, n], [w, s]]] },
-      properties: {
-        x, y, code: r[i.code], bv, ov, osm, eab, oth,
-        bvArea: r[i.bvArea] ?? 0, ovArea: r[i.ovArea] ?? 0,
-        ratio: bv > 0 ? ov / bv : -1,
-        othShare: ov > 0 ? (oth / ov) * 100 : -1,
-        osmShare: ov > 0 ? (osm / ov) * 100 : -1,
-        empty: bv === 0 && ov === 0 ? 1 : 0
-      }
-    };
-  }
-  return { type: 'FeatureCollection', features };
-}
-
-/** 市区町村コード -> セルの外接範囲 [xmin, ymin, xmax, ymax]。 */
-export function extents(geo) {
-  const m = new Map();
-  for (const f of geo.features) {
-    const p = f.properties;
-    const b = m.get(p.code) || [Infinity, Infinity, -Infinity, -Infinity];
-    b[0] = Math.min(b[0], p.x); b[1] = Math.min(b[1], p.y);
-    b[2] = Math.max(b[2], p.x); b[3] = Math.max(b[3], p.y);
-    m.set(p.code, b);
-  }
-  return m;
-}
-
-/** 外接範囲 -> fitBounds に渡す [[w,s],[e,n]]。 */
-export const boundsOf = (b) => [[x2lon(b[0]), y2lat(b[3] + 1)], [x2lon(b[2] + 1), y2lat(b[1])]];
+/** bbox [w,s,e,n] -> fitBounds に渡す [[w,s],[e,n]]。 */
+export const boundsOf = (b) => [[b[0], b[1]], [b[2], b[3]]];
 
 /** 塗り色の MapLibre 式。未算出(-1)は無データ色へ落とす。 */
 export function fillExpr(metric) {

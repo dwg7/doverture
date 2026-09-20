@@ -1,0 +1,4 @@
+# ビルド中間物（build_tiles.sh で再生成できる）
+build/
+spatialid/node_modules/
+.DS_Store

@@ -7,10 +7,16 @@
  */
 import * as maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { Z, x2lon, y2lat, DIVERGING, SEQ, METRICS, toGeoJSON, extents, boundsOf, fillExpr, zoomHint,
+import { Protocol } from 'pmtiles';
+import { Z, x2lon, y2lat, DIVERGING, SEQ, METRICS, boundsOf, fillExpr, zoomHint,
          CELL_OPACITY, photoOpacity } from './data.js';
 
-const DATA = '../data/cells.json';
+// セルは PMTiles のベクタタイルで配る。27,947 地物を毎回ブラウザへ投げて
+// クライアント側でタイル化するのをやめ、見えている分だけ読む。
+// タイル z12 に z14 セル、以降は overzoom（セルは地理的に固定サイズなので正しく拡大される）。
+const TILES = '../data/doverture-cells.pmtiles';
+const EXTENTS = '../data/municipal-extents.json';
+const SRC_LAYER = 'cells';
 const ATTR =
   '<a href="https://www.gsi.go.jp/">国土地理院</a> 最適化ベクトルタイル(bvmap)・シームレス空中写真（kitaphoto17、CC BY 4.0） | ' +
   '<a href="https://overturemaps.org/">Overture Maps</a> / ' +
@@ -53,6 +59,25 @@ function guard(what, fn) {
   }
 }
 
+/*
+ * MapLibre は GeoJSON のタイル化を module worker でやる。そこが黙って死ぬと
+ * 「ラスタは出るがベクタは出ない・idle も来ない」になる。まずそれ自体を試す。
+ */
+let workerVerdict = '未検査';
+try {
+  const src = 'self.onmessage = () => self.postMessage("pong");';
+  const url = URL.createObjectURL(new Blob([src], { type: 'text/javascript' }));
+  const w = new Worker(url, { type: 'module' });
+  const timer = setTimeout(() => { workerVerdict = '無反応(2秒)'; w.terminate(); }, 2000);
+  w.onmessage = (ev) => { workerVerdict = `動作OK(${ev.data})`; clearTimeout(timer); w.terminate(); URL.revokeObjectURL(url); };
+  w.onerror = (ev) => { workerVerdict = `起動失敗: ${ev.message || ev.type}`; clearTimeout(timer); };
+  w.postMessage('ping');
+} catch (err) {
+  workerVerdict = `生成できず: ${err.message}`;
+}
+
+maplibregl.addProtocol('pmtiles', new Protocol().tile);
+
 const map = new maplibregl.Map({
   container: 'map',
   style: {
@@ -62,6 +87,7 @@ const map = new maplibregl.Map({
       // 高ズーム(z13-17)は seamlessphoto512 の実データ。北海道＋北方領土に
       // 切り出されていて、doverture の母集団の範囲とそのまま一致する。
       // 生の seamlessphoto512 は低ズームに黒い nodata が残る（実測: z6 で 99 画素）。
+      cells: { type: 'vector', url: 'pmtiles://' + TILES },
       aerial: {
         type: 'raster',
         tiles: ['https://stars.optgeo.org/kitaphoto17/{z}/{x}/{y}'],
@@ -148,90 +174,95 @@ function apply() {
   drawLegend(m);
 }
 
-function show(p) {
-  const name = (data.names && data.names[p.code]) || p.code;
+function show(p, lngLat) {
   const pct = (a, b) => (b > 0 ? ((a / b) * 100).toFixed(1) + '%' : '—');
+  const lv = p.lv || 14;
   readout.hidden = false;
   readout.innerHTML = `
-    <h2>${name}　<span style="color:var(--muted);font-weight:400">z14/${p.x}/${p.y}</span></h2>
+    <h2>${p.name || p.code}　<span style="color:var(--muted);font-weight:400">空間ID z${lv}${p.cells > 1 ? `（z14セル ${p.cells} 個ぶん）` : ''}</span></h2>
     <table>
-      <tr><td>bvmap（国土地理院）</td><td>${p.bv.toLocaleString()} 件</td></tr>
-      <tr><td>Overture 合計</td><td>${p.ov.toLocaleString()} 件</td></tr>
-      <tr><td>　OSM 由来</td><td>${p.osm.toLocaleString()}（${pct(p.osm, p.ov)}）</td></tr>
-      <tr><td>　東アジア学術</td><td>${p.eab.toLocaleString()}（${pct(p.eab, p.ov)}）</td></tr>
-      <tr><td>　Microsoft ほか</td><td>${p.oth.toLocaleString()}（${pct(p.oth, p.ov)}）</td></tr>
-      <tr><td>Overture ÷ bvmap</td><td>${p.bv > 0 ? (p.ov / p.bv).toFixed(2) : '—'}</td></tr>
-      <tr><td>建物面積 bvmap / Overture</td><td>${Math.round(p.bvArea / 1000).toLocaleString()} / ${Math.round(p.ovArea / 1000).toLocaleString()} 千m²</td></tr>
+      <tr><td>bvmap（国土地理院）</td><td>${(+p.bv).toLocaleString()} 件</td></tr>
+      <tr><td>Overture 合計</td><td>${(+p.ov).toLocaleString()} 件</td></tr>
+      <tr><td>　OSM 由来</td><td>${(+p.osm).toLocaleString()}（${pct(+p.osm, +p.ov)}）</td></tr>
+      <tr><td>　東アジア学術</td><td>${(+p.eab).toLocaleString()}（${pct(+p.eab, +p.ov)}）</td></tr>
+      <tr><td>　Microsoft ほか</td><td>${(+p.oth).toLocaleString()}（${pct(+p.oth, +p.ov)}）</td></tr>
+      <tr><td>Overture ÷ bvmap</td><td>${+p.bv > 0 ? (+p.ov / +p.bv).toFixed(2) : '—'}</td></tr>
+      <tr><td>建物面積 bvmap / Overture</td><td>${Math.round(+p.bvA / 1000).toLocaleString()} / ${Math.round(+p.ovA / 1000).toLocaleString()} 千m²</td></tr>
     </table>
     <a href="#" id="zoomHere">この区画を拡大して写真で見る</a>
     <p class="hint">拡大すると下図の空中写真で、実際に建物があるか確かめられます。</p>`;
   $('zoomHere').onclick = (ev) => {
     ev.preventDefault();
-    map.fitBounds([[x2lon(p.x), y2lat(p.y + 1)], [x2lon(p.x + 1), y2lat(p.y)]],
-                  { padding: 80, duration: 800 });
+    if (lngLat) map.easeTo({ center: lngLat, zoom: Math.max(map.getZoom(), 15.5), duration: 800 });
   };
 }
 
-step('地図を初期化しました。セルを読み込みます…');
+step('地図を初期化しています…');
 
 map.on('load', async () => {
   updateBadge();
-  try {
-    step(`${DATA} を取得中…`);
-    const res = await fetch(DATA, { cache: 'no-store' });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    data = await res.json();
-    step(`${data.rows.length.toLocaleString()} 行を受け取りました。組み立て中…`);
-  } catch (err) {
-    fail('セルのデータを読めませんでした', err);
-    $('status').textContent = `データを読めませんでした（${err.message}）`;
-    return;
-  }
 
-  geo = guard('セルの組み立て', () => toGeoJSON(data));
-  if (!geo) return;
-
-  map.addSource('cells', { type: 'geojson', data: geo });
-  map.addLayer({
-    id: 'cells', type: 'fill', source: 'cells',
-    paint: { 'fill-color': '#383835', 'fill-opacity': CELL_OPACITY }
-  });
-  map.addLayer({
-    id: 'cells-line', type: 'line', source: 'cells',
-    paint: { 'line-color': '#1a1a19', 'line-width': 0.4, 'line-opacity': 0.35 },
-    minzoom: 9
+  guard('セルのレイヤー追加', () => {
+    map.addLayer({
+      id: 'cells', type: 'fill', source: 'cells', 'source-layer': SRC_LAYER,
+      paint: { 'fill-color': '#383835', 'fill-opacity': CELL_OPACITY }
+    });
+    map.addLayer({
+      id: 'cells-line', type: 'line', source: 'cells', 'source-layer': SRC_LAYER,
+      paint: { 'line-color': '#1a1a19', 'line-width': 0.4, 'line-opacity': 0.35 },
+      minzoom: 9
+    });
   });
   guard('指標の適用', apply);
   guard('下図の初期化', () =>
     map.setPaintProperty('aerial', 'raster-opacity', photoOpacity($('basemap').value)));
-  $('status').textContent = `${data.rows.length.toLocaleString()} セル・基準 ${String(data.asOf).slice(0, 10)}`;
-  step(`セル ${geo.features.length.toLocaleString()} 件を地図に追加しました。描画待ち…`);
+  step('セルのレイヤーを追加しました。タイルの到着待ち…');
 
-  /*
-   * 本当に描かれたかを地図自身に確かめさせる。
-   * idle は「保留中のタイルが全部片付く」まで来ないので、来ないこと自体が症状になる。
-   * だから idle と時間切れの両方で見る。
-   */
+  // 通るだけで出す。
+  let last = null;
+  map.on('mousemove', 'cells', (e) => {
+    const p = e.features[0].properties;
+    const id = p.lv + '/' + p.code + '/' + p.bv + '/' + p.ov;
+    if (id !== last) { last = id; guard('セルの読み取り', () => show(p, e.lngLat)); }
+    map.getCanvas().style.cursor = 'pointer';
+  });
+  map.on('mouseleave', 'cells', () => { map.getCanvas().style.cursor = ''; });
+
+  // 市区町村ジャンプ（外接範囲だけの小さな別ファイル）
+  try {
+    const ext = await (await fetch(EXTENTS, { cache: 'no-store' })).json();
+    const jump = $('jump');
+    Object.entries(ext)
+      .sort((a2, b2) => a2[0].localeCompare(b2[0]))
+      .forEach(([c, v]) => jump.add(new Option(`${v.name}（${c}）`, c)));
+    jump.onchange = () => {
+      const v = ext[jump.value];
+      if (v) map.fitBounds(boundsOf(v.bbox), { padding: 60, duration: 900 });
+    };
+  } catch (err) {
+    fail('市区町村ジャンプの用意に失敗', err);
+  }
+
+  /* 本当に描かれたかを地図自身に確かめさせる。idle は来ないことがあるので時間でも見る。 */
   let reported = false;
   const check = (why) => {
     if (reported) return;
     const q = (f, d) => { try { return f(); } catch (e) { return d; } };
     const drawn = q(() => map.queryRenderedFeatures({ layers: ['cells'] }).length, -1);
-    const inSrc = q(() => map.querySourceFeatures('cells').length, -1);
     const state = [
-      `契機=${why}`,
-      `z${map.getZoom().toFixed(1)}`,
+      `契機=${why}`, `z${map.getZoom().toFixed(1)}`,
       `レイヤー=${map.getLayer('cells') ? 'あり' : 'なし'}`,
       `ソース=${map.getSource('cells') ? 'あり' : 'なし'}`,
       `ソース読込済=${q(() => map.isSourceLoaded('cells'), '?')}`,
       `タイル読込済=${q(() => map.areTilesLoaded(), '?')}`,
-      `map.loaded=${q(() => map.loaded(), '?')}`,
-      `ソース内地物=${inSrc}`,
-      `描画地物=${drawn}`
+      `ソース内地物=${q(() => map.querySourceFeatures('cells', { sourceLayer: SRC_LAYER }).length, -1)}`,
+      `描画地物=${drawn}`,
+      `モジュールworker=${workerVerdict}`
     ].join(' / ');
     console.log('[doverture] 状態: ' + state);
     if (drawn > 0) {
       reported = true;
+      $('status').textContent = `PMTiles から ${drawn.toLocaleString()} セル描画中`;
       step(`描画 ${drawn.toLocaleString()} 件（画面内）`, 'ok');
       setTimeout(() => { banner.className = 'gone'; }, 4000);
     } else if (why !== 'idle') {
@@ -241,30 +272,6 @@ map.on('load', async () => {
   map.once('idle', () => check('idle'));
   setTimeout(() => check('3秒'), 3000);
   setTimeout(() => check('10秒'), 10000);
-
-  // 通るだけで出す。クリックを要求すると「どこを押せばいいか」が分からない。
-  let last = null;
-  map.on('mousemove', 'cells', (e) => {
-    const p = e.features[0].properties;
-    const id = p.x + '/' + p.y;
-    if (id !== last) { last = id; guard('セルの読み取り', () => show(p)); }
-    map.getCanvas().style.cursor = 'pointer';
-  });
-  map.on('mouseleave', 'cells', () => { map.getCanvas().style.cursor = ''; });
-  map.on('click', 'cells', (e) => guard('セルの読み取り', () => show(e.features[0].properties)));
-
-  guard('市区町村ジャンプの用意', () => {
-    const jump = $('jump');
-    const extent = extents(geo);
-    [...extent.keys()]
-      .map((c) => [c, (data.names && data.names[c]) || c])
-      .sort((a, b) => a[0].localeCompare(b[0]))
-      .forEach(([c, n]) => jump.add(new Option(`${n}（${c}）`, c)));
-    jump.onchange = () => {
-      const b = extent.get(jump.value);
-      if (b) map.fitBounds(boundsOf(b), { padding: 60, duration: 900 });
-    };
-  });
 });
 
 sel.onchange = () => guard('指標の適用', apply);
