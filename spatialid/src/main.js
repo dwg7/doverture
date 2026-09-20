@@ -12,7 +12,7 @@ import { Z, x2lon, y2lat, DIVERGING, SEQ, METRICS, toGeoJSON, extents, boundsOf,
 
 const DATA = '../data/cells.json';
 const ATTR =
-  '<a href="https://www.gsi.go.jp/">国土地理院</a> 最適化ベクトルタイル(bvmap)・シームレス空中写真 | ' +
+  '<a href="https://www.gsi.go.jp/">国土地理院</a> 最適化ベクトルタイル(bvmap)・シームレス空中写真（kitaphoto17、CC BY 4.0） | ' +
   '<a href="https://overturemaps.org/">Overture Maps</a> / ' +
   '<a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors | ' +
   '国土数値情報 N03（測量法に基づく国土地理院長承認（複製）R 4JHf 430） | ' +
@@ -37,10 +37,16 @@ const map = new maplibregl.Map({
   style: {
     version: 8,
     sources: {
+      // kitaphoto17: 低ズーム(z2-12)は kitaphoto（黒い nodata 画素を処理済み）、
+      // 高ズーム(z13-17)は seamlessphoto512 の実データ。北海道＋北方領土に
+      // 切り出されていて、doverture の母集団の範囲とそのまま一致する。
+      // 生の seamlessphoto512 は低ズームに黒い nodata が残る（実測: z6 で 99 画素）。
       aerial: {
         type: 'raster',
-        tiles: ['https://stars.optgeo.org/seamlessphoto512/{z}/{x}/{y}'],
-        tileSize: 512, minzoom: 1, maxzoom: 17, attribution: ATTR
+        tiles: ['https://stars.optgeo.org/kitaphoto17/{z}/{x}/{y}'],
+        tileSize: 512, minzoom: 2, maxzoom: 17,
+        bounds: [137.8125, 40.979898, 151.875, 47.040182],
+        attribution: ATTR
       }
     },
     layers: [
