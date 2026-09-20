@@ -39,7 +39,7 @@ await ta('メタデータに cells レイヤーと必要な属性がある', asy
   const layers = (m.vector_layers || []).map((l) => l.id);
   assert.ok(layers.includes('cells'), `レイヤー: ${layers.join(',')}`);
   const f = m.vector_layers.find((l) => l.id === 'cells').fields;
-  for (const need of ['bv', 'ov', 'osm', 'eab', 'oth', 'code', 'lv', 'cells']) {
+  for (const need of ['bv', 'ov', 'osm', 'eab', 'oth', 'code', 'lv']) {
     assert.ok(need in f, `属性 ${need} が無い`);
   }
 });
@@ -69,11 +69,15 @@ t('市区町村の外接範囲が使える形', () => {
   }
 });
 
-t('zoomHint がセルのレベルとpxを返す', () => {
-  assert.equal(zoomHint(6).level, 8, 'z6 では z8 セル');
-  assert.equal(zoomHint(10).level, 12);
-  assert.equal(zoomHint(12).level, 14, 'z12 以降は z14 で頭打ち');
-  assert.equal(zoomHint(16).level, 14);
+t('zoomHint はどのズームでも z14 セルを返す（集計単位が動かない）', () => {
+  for (const z of [4, 6, 6.2, 10, 12, 16, 19]) {
+    assert.equal(zoomHint(z).level, 14, `z${z} でセルのレベルが 14 でない`);
+  }
+  // 512px タイル。z14 で1セル=1タイル=512px、1段引くごとに半分。
+  assert.equal(zoomHint(14).px, 512);
+  assert.equal(zoomHint(6).px, 2);
+  assert.ok(zoomHint(7).px > zoomHint(6).px, 'px はズームに対して単調増加');
+  assert.equal(zoomHint(6).what, '全道の地肌');
   assert.equal(zoomHint(15).what, '写真で実物を確認');
 });
 
