@@ -45,6 +45,27 @@ t('バンドルが参照する assets/ のファイルが全部存在する', ()
   console.log(`      （${refs.size} 件の参照を確認）`);
 });
 
+t('出力された .mjs が import する相手が全部存在する（依存の閉包）', () => {
+  // MapLibre のワーカーは ./maplibre-gl-shared.mjs を import する。?url は1ファイルしか
+  // 出さないので、閉じていないと 404 になり、また無言で描かれなくなる。
+  const seen = new Set();
+  const queue = files.filter((f) => f.endsWith('.mjs'));
+  assert.ok(queue.length > 0, '.mjs が1つも出力されていない');
+  while (queue.length) {
+    const f = queue.shift();
+    if (seen.has(f)) continue;
+    seen.add(f);
+    const body = fs.readFileSync(path.join(DIST, 'assets', f), 'utf8');
+    for (const m of body.matchAll(/from\s*["']\.\/([A-Za-z0-9._-]+\.mjs)["']/g)) {
+      const dep = m[1];
+      assert.ok(fs.existsSync(path.join(DIST, 'assets', dep)),
+                `${f} が import する assets/${dep} が存在しない`);
+      queue.push(dep);
+    }
+  }
+  console.log(`      （${seen.size} 個の .mjs を辿って確認）`);
+});
+
 t('ファイル名にハッシュが入っていない', () => {
   for (const f of files) {
     assert.ok(!/-[A-Za-z0-9_-]{8}\.(js|mjs|css)$/.test(f),
