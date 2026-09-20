@@ -20,12 +20,33 @@ const ATTR =
 
 const $ = (id) => document.getElementById(id);
 
+/*
+ * 自己診断バナー。
+ * このセッションにはブラウザが無く、描画を目視できない。だから「どこまで進んで
+ * どこで止まったか」をページ自身に画面へ書かせる。推測でやりとりしないため。
+ */
+const banner = document.createElement('div');
+banner.id = 'banner';
+document.body.appendChild(banner);
+const steps = [];
+function step(msg, kind) {
+  steps.push(msg);
+  banner.textContent = msg;
+  banner.className = kind || '';
+  console.log('[doverture] ' + msg);
+}
+function fail(msg, err) {
+  console.error('[doverture] ' + msg, err);
+  banner.textContent = `${msg}：${err && err.message ? err.message : err}`;
+  banner.className = 'bad';
+}
+
 /** 失敗しても地図本体は生かす。真っ白にする代わりに、何が落ちたかを画面に出す。 */
 function guard(what, fn) {
   try {
     return fn();
   } catch (err) {
-    console.error(`[doverture] ${what} に失敗:`, err);
+    fail(`${what} に失敗`, err);
     const s = $('status');
     if (s) s.textContent = `${what} に失敗しました（${err.message}）`;
     return undefined;
@@ -144,13 +165,18 @@ function show(p) {
   };
 }
 
+step('地図を初期化しました。セルを読み込みます…');
+
 map.on('load', async () => {
   updateBadge();
   try {
+    step(`${DATA} を取得中…`);
     const res = await fetch(DATA, { cache: 'no-store' });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     data = await res.json();
+    step(`${data.rows.length.toLocaleString()} 行を受け取りました。組み立て中…`);
   } catch (err) {
+    fail('セルのデータを読めませんでした', err);
     $('status').textContent = `データを読めませんでした（${err.message}）`;
     return;
   }
@@ -172,6 +198,21 @@ map.on('load', async () => {
   guard('下図の初期化', () =>
     map.setPaintProperty('aerial', 'raster-opacity', photoOpacity($('basemap').value)));
   $('status').textContent = `${data.rows.length.toLocaleString()} セル・基準 ${String(data.asOf).slice(0, 10)}`;
+  step(`セル ${geo.features.length.toLocaleString()} 件を地図に追加しました。描画待ち…`);
+
+  // 本当に描かれたかを地図自身に確かめさせる。0 件なら、追加できていても見えていない。
+  map.once('idle', () => {
+    let drawn = -1;
+    try { drawn = map.queryRenderedFeatures({ layers: ['cells'] }).length; } catch (e) { /* noop */ }
+    if (drawn > 0) {
+      step(`描画 ${drawn.toLocaleString()} 件（画面内）`, 'ok');
+      setTimeout(() => { banner.className = 'gone'; }, 4000);
+    } else {
+      fail('セルを追加したのに画面に描かれていません',
+           new Error(`z${map.getZoom().toFixed(1)} / レイヤー ${map.getLayer('cells') ? 'あり' : 'なし'}`
+                     + ` / 不透明度 ${JSON.stringify(map.getPaintProperty('cells', 'fill-opacity'))}`));
+    }
+  });
 
   // 通るだけで出す。クリックを要求すると「どこを押せばいいか」が分からない。
   let last = null;
