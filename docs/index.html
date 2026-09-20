@@ -17,6 +17,18 @@
     </script>
     <script src="https://unpkg.com/openmct@4.3.1/dist/openmct.js"></script>
     <div id="app"></div>
+    <!-- z14 空間IDパネルへは、まずリンクで繋ぐ。Open MCT のカスタムビューへの
+         埋め込みは、値が出揃ってから判断する（HANDOVER.md）。 -->
+    <a id="spatialid-link" href="./spatialid/">z14 空間IDパネル →</a>
+    <style>
+      #spatialid-link {
+        position: fixed; right: 12px; bottom: 12px; z-index: 99;
+        font: 12px/1 -apple-system, BlinkMacSystemFont, "Hiragino Sans", sans-serif;
+        padding: 7px 11px; border-radius: 6px; text-decoration: none;
+        background: #232322; color: #c3c2b7; border: 1px solid #2c2c2a;
+      }
+      #spatialid-link:hover { color: #fff; border-color: #898781; }
+    </style>
     <script src="./vendor/do/tabularmap.js"></script>
     <script src="./vendor/do/openmct-plugin.js"></script>
     <script src="./doverture-sources.js"></script>

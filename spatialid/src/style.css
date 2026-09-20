@@ -1,0 +1,47 @@
+:root {
+  --surface: #1a1a19;
+  --panel: #232322;
+  --ink: #ffffff;
+  --ink-2: #c3c2b7;
+  --muted: #898781;
+  --hairline: #2c2c2a;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; background: var(--surface); color: var(--ink); }
+body { font: 13px/1.5 -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", sans-serif; }
+#map { position: absolute; inset: 0; }
+
+#panel, #readout {
+  position: absolute; z-index: 2;
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
+  border: 1px solid var(--hairline); border-radius: 8px;
+  padding: 12px 14px; backdrop-filter: blur(8px);
+}
+#panel { top: 12px; left: 12px; width: 268px; max-height: calc(100% - 24px); overflow: auto; }
+#readout { bottom: 12px; left: 12px; width: 268px; }
+
+h1 { margin: 0 0 10px; font-size: 14px; font-weight: 600; letter-spacing: .02em; }
+h1 span { display: block; font-size: 11px; font-weight: 400; color: var(--muted); margin-top: 2px; }
+
+label { display: block; font-size: 11px; color: var(--ink-2); margin: 10px 0 4px; }
+label.row { display: flex; align-items: center; gap: 6px; margin-top: 12px; }
+select {
+  width: 100%; font: inherit; font-size: 12px; padding: 5px 7px;
+  background: var(--surface); color: var(--ink);
+  border: 1px solid var(--hairline); border-radius: 5px;
+}
+
+#legend { margin-top: 10px; display: flex; flex-direction: column; gap: 3px; }
+.sw { display: flex; align-items: center; gap: 7px; font-size: 11px; color: var(--ink-2); }
+.sw i { width: 13px; height: 13px; border-radius: 3px; flex: 0 0 auto; }
+.bar { height: 10px; border-radius: 3px; margin: 2px 0 4px; }
+.ends { display: flex; justify-content: space-between; font-size: 10px; color: var(--muted); }
+
+#status { margin: 12px 0 0; font-size: 11px; color: var(--muted); }
+
+#readout h2 { margin: 0 0 6px; font-size: 13px; font-weight: 600; }
+#readout table { width: 100%; border-collapse: collapse; font-size: 11px; }
+#readout td { padding: 2px 0; color: var(--ink-2); }
+#readout td + td { text-align: right; color: var(--ink); font-variant-numeric: tabular-nums; }
+#readout a { color: #86b6ef; font-size: 11px; display: inline-block; margin-top: 8px; }
+.maplibregl-ctrl-attrib { font-size: 10px; }
