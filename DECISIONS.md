@@ -637,3 +637,61 @@ z14 セル（約1.8km）は市区町村境をまたぐが、**セルは1つの�
 
 **市区町村単位の集計には、この境界漏れが乗っている。** 面積の大きい自治体では
 相対的に小さいが、小さい自治体では効く。比率の解釈でこの桁を争わないこと。
+
+---
+
+## D14 — パネルが真っ白になった件と、ブラウザ無しで作る体制（2026-09-20）
+
+Hidenori の手元で `TypeError: getSource._data.features is not iterable` が出て
+パネルが表示されなかった。**私が出したバグ**（MapLibre 6 の `GeoJSONSource._data` は
+FeatureCollection ではない）で、直前に修正済みだったが、届いていなかった。
+
+### 二つの別の失敗が重なっていた
+
+1. **バグそのもの**：非公開APIに頼った。しかも `map.on('load')` の中だったので、
+   例外が load ハンドラ全体を落とし、**地図ごと真っ白**になった
+2. **修正が届かなかった**：報告されたバンドル名 `index-c0cctE2M.js` は、
+   こちらの最新ビルド `index-Dsg7K-Y8.js` と別物。ブラウザが古いものを掴んでいた
+
+### cafebabe に答えがあった
+
+- `patterns/local-dev-pitfalls.md`：**`python3 -m http.server` は `Cache-Control` を
+  送らないため、ブラウザのヒューリスティックキャッシュが古い JS を配信し続ける。
+  ハードリロードや新規タブでも直らない**（プロファイル共有キャッシュ、`kitavolca` が遭遇）。
+  回避はポート変更
+- `patterns/maplibre-gl-js-output-testing.md`：**コンテナが 0x0 のまま初期化されると
+  地図が真っ黒**になる（`Map` はコンストラクタ時に一度だけサイズを測る）。
+  `resize` と `visibilitychange` の両方で `map.resize()`（`vientiane-planning-map` 由来）
+- `patterns/maplibre-gl-js-embedding.md`：`hash: true` ではなく **`hash: 'map'`**
+  （名前空間化。hfu さん承認済みの推奨）
+
+### 対応
+
+1. **ファイル名からハッシュを外した**（Hidenori の提案）。`assets/app.js` / `app.css` 固定。
+   GitHub Pages は CSS/JS を約10分キャッシュするので、ハッシュ名だと
+   **古い index.html が存在しないファイルを指して404 → 真っ白**という硬い壊れ方をする。
+   固定名なら古くても同じファイルを指し、キャッシュが切れれば自然に直る
+2. **`scripts/serve.py`** を追加。`Cache-Control: no-store` を明示して配信する。
+   `python3 -m http.server` は使わない
+3. **`map.resize()` の復旧**と **`hash: 'map'`** を採り入れた
+4. **`guard()` を導入**。ジャンプ・凡例・読み取りなどが落ちても地図本体は生き、
+   `status` 欄に「○○に失敗しました」と出る。**真っ白にしない**
+
+### 根本対応：ブラウザ無しでも検証できる形にした
+
+このセッションにはブラウザが無い（`claude-in-chrome` は接続0）。目視できない以上、
+**目視なしで捕まえられるバグと、そうでないバグを分ける**のが筋。
+
+- `spatialid/src/data.js` — MapLibre に依存しない純粋なロジック（セルの組み立て、
+  色の式、外接範囲、ズームの目安）
+- `spatialid/test/data.test.mjs` — 実データ `docs/data/cells.json` に対する9件の検証。
+  `node test/data.test.mjs` で走る
+
+**このテストは書いた直後に1件を捕まえた**（MapLibre の `step` 式の引数は奇数個で、
+こちらのアサーションの方が誤っていた）。データの形に関するバグ——まさに今回のような
+もの——はこれで止まる。描画そのものは依然として目視が要る。
+
+### 残る限界
+
+**私は今もこのパネルの描画を見ていない。** 文字の重なり、凡例の可読性、
+ジャンプの体感は確かめられていない。目視が要る部分は、そう明記して Hidenori に渡す。

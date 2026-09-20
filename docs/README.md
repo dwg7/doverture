@@ -6,11 +6,21 @@ Open MCT 4.3.1 を unpkg の CDN から読む**ビルドなし**の静的ペー�
 ## 見る
 
 ```bash
-python3 -m http.server 8779 --directory docs
+./scripts/serve.py          # 既定 8779
 ```
+
+`python3 -m http.server` は使わない——`Cache-Control` を送らないため、ブラウザの
+ヒューリスティックキャッシュが古い JS を配信し続け、**ハードリロードでも直らない**
+（cafebabe `patterns/local-dev-pitfalls.md`、`kitavolca` が遭遇）。`scripts/serve.py` は
+`no-store` を明示する。それでも古いものが出るときは、別ポート（`./scripts/serve.py 8780`）で
+キャッシュの名前空間から逃げる。
 
 ポート **8779** は doverture 固定。slate 上では複数セッションが並行するため、
 他プロジェクトのサーバーを自分のものと誤認する事故を避ける（`tabularmaps/do` の知見）。
+
+ビルド成果物の**ファイル名にハッシュは使わない**（`assets/app.js` 固定）。GitHub Pages は
+CSS/JS を約10分キャッシュするので、ハッシュ名だと古い `index.html` が存在しないファイルを
+指して 404 になり、真っ白な画面という硬い壊れ方をする。
 
 ## 構成
 
