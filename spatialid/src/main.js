@@ -65,45 +65,8 @@ function guard(what, fn) {
   }
 }
 
-/*
- * MapLibre は GeoJSON のタイル化を module worker でやる。そこが黙って死ぬと
- * 「ラスタは出るがベクタは出ない・idle も来ない」になる。まずそれ自体を試す。
- */
-let workerVerdict = '未検査';
-try {
-  const src = 'self.onmessage = () => self.postMessage("pong");';
-  const url = URL.createObjectURL(new Blob([src], { type: 'text/javascript' }));
-  const w = new Worker(url, { type: 'module' });
-  const timer = setTimeout(() => { workerVerdict = '無反応(2秒)'; w.terminate(); }, 2000);
-  w.onmessage = (ev) => { workerVerdict = `動作OK(${ev.data})`; clearTimeout(timer); w.terminate(); URL.revokeObjectURL(url); };
-  w.onerror = (ev) => { workerVerdict = `起動失敗: ${ev.message || ev.type}`; clearTimeout(timer); };
-  w.postMessage('ping');
-} catch (err) {
-  workerVerdict = `生成できず: ${err.message}`;
-}
-
 maplibregl.setWorkerUrl(maplibreWorkerUrl);
 maplibregl.addProtocol('pmtiles', new Protocol().tile);
-
-/*
- * MapLibre を通さずに PMTiles を直接読んでみる。
- * ここが通れば、ファイル・サーバ(Range)・pmtiles ライブラリは無実で、
- * 詰まっているのは MapLibre 側だと確定する。
- */
-let pmtilesVerdict = '検査中';
-(async () => {
-  try {
-    const { PMTiles } = await import('pmtiles');
-    const pm = new PMTiles(new URL(TILES, location.href).href);
-    const h = await pm.getHeader();
-    const t = await pm.getZxy(10, 914, 375);   // 札幌を含む z10 タイル
-    pmtilesVerdict = `直読みOK（z${h.minZoom}-${h.maxZoom}, tileType=${h.tileType}, `
-                   + `札幌z10タイル=${t && t.data ? t.data.byteLength + 'バイト' : 'なし'}）`;
-  } catch (err) {
-    pmtilesVerdict = `直読み失敗: ${err && err.message ? err.message : err}`;
-  }
-  console.log('[doverture] PMTiles 直読み: ' + pmtilesVerdict);
-})();
 
 const map = new maplibregl.Map({
   container: 'map',
@@ -164,8 +127,6 @@ function updateBadge() {
 }
 map.on('move', updateBadge);
 
-let data = null;
-let geo = null;
 
 function drawLegend(m) {
   legend.innerHTML = '';
@@ -284,10 +245,7 @@ map.on('load', async () => {
       `タイル読込済=${q(() => map.areTilesLoaded(), '?')}`,
       `ソース内地物=${q(() => map.querySourceFeatures('cells', { sourceLayer: SRC_LAYER }).length, -1)}`,
       `描画地物=${drawn}`,
-      `モジュールworker=${workerVerdict}`,
-      `PMTiles直読み=${pmtilesVerdict}`,
-      `worker数=${q(() => maplibregl.getWorkerCount(), '?')}`,
-      `workerURL=${q(() => maplibregl.getWorkerUrl(), '?')}`
+      `worker=${q(() => maplibregl.getWorkerUrl(), '?')}`
     ].join(' / ');
     console.log('[doverture] 状態: ' + state);
     if (drawn > 0) {
