@@ -1,3 +1,4 @@
+#!/usr/bin/env -S uv run --quiet --script
 # /// script
 # requires-python = ">=3.10"
 # dependencies = ["mapbox-vector-tile"]
@@ -18,6 +19,9 @@
 
 床が効くのは、**密度と独立だから**。同じ密度帯（10–30件/km²）の中で p10 の 12m² から
 p90 の 127m² まで散らばる。
+
+**この床が何で決まっているかは D30 で確定した：都市計画区域の内外。**
+scripts/check_capture_boundary.py で A09（都市地域）と突き合わせている。
 
 前提：キャッシュ済みの bvmap z16 タイルを読む（scripts/build_tiles.sh の副産物。
 z16 でなければならない——z14/z15 は tippecanoe で間引かれている、D2）。
@@ -104,4 +108,6 @@ rank=sorted(((sorted(v)[len(v)//2], c, len(v)) for c,v in mu.items() if len(v)>=
 for m,c,n in rank[:8]: print(f"  {names.get(c,c):10s} p5中央 {m:5.0f} m²  ({n}セル)")
 print("  ---")
 for m,c,n in rank[-6:]: print(f"  {names.get(c,c):10s} p5中央 {m:5.0f} m²  ({n}セル)")
-json.dump(out, open("floor.json","w"))
+os.makedirs(f"{ROOT}/build", exist_ok=True)
+json.dump(out, open(f"{ROOT}/build/floor.json","w"))
+print(f"\n床の計測値 {len(out):,} セル -> build/floor.json")
