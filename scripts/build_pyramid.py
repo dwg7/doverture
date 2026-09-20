@@ -9,9 +9,11 @@
 最初から手元にある**。低ズーム用に件数を足し上げるだけで、各ズームに
 「そのズームで意味のある大きさのセル」を置ける。
 
-対応：タイルのズーム Z には、セルのレベル L = min(14, Z + 2) を置く。
-こうすると 1タイルに必ず 4x4 = 16 セルが入り、extent 4096 なら 1辺 1024 単位。
+対応：タイルのズーム Z には、セルのレベル L = min(14, Z + DETAIL) を置く。
+DETAIL=3 なら 1タイルに 8x8 = 64 セルが入り、extent 4096 で 1辺 512 単位。
 どのズームでも同じ見え方になり、サブピクセルのセルを描くことがなくなる。
+（DETAIL=2 だと 4x4 で粗すぎたため 3 に上げた。サブピクセルにならない範囲で
+細かい方が、模様が読める。）
 
 maxzoom は 12（= z14 セル）。それ以上は overzoom で表示する——セルは地理的に
 固定サイズなので、拡大しても正しい大きさで描かれる。
@@ -27,7 +29,8 @@ CELLS = os.path.join(ROOT, "data", "hokkaido-z14-cells.json")
 OUT = os.path.join(ROOT, "build", "pyramid")
 
 BASE = 14                 # センサスのセルのレベル
-MAXZOOM = 12              # タイルの最大ズーム（= BASE - 2）
+DETAIL = 3                # タイル1枚に 2^DETAIL 四方のセルを入れる
+MAXZOOM = 12              # タイルの最大ズーム。これ以上は overzoom で見せる
 MINZOOM = 4
 NUM = ["bv", "ov", "osm", "eab", "oth", "bvA", "ovA"]
 
@@ -52,7 +55,7 @@ print(f"基底 z{BASE}: {len(base):,} セル")
 os.makedirs(OUT, exist_ok=True)
 manifest = []
 for tz in range(MINZOOM, MAXZOOM + 1):
-    level = min(BASE, tz + 2)
+    level = min(BASE, tz + DETAIL)
     shift = BASE - level
     agg = defaultdict(lambda: {k: 0 for k in NUM} | {"n": 0, "codes": defaultdict(int)})
     for (x, y), v in base.items():
