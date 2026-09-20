@@ -8,7 +8,7 @@
 
     ./scripts/serve.py [port]      既定 8779
 """
-import functools, http.server, os, socketserver, sys
+import functools, http.server, os, socketserver, sys, time
 
 ROOT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "docs")
 PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8779
@@ -67,7 +67,10 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         super().end_headers()
 
     def log_message(self, fmt, *args):
-        pass
+        # 何が要求されたかは、詰まったときの唯一の客観的な証拠になる。黙らせない。
+        sys.stderr.write("%s  %s  %s\n" % (
+            time.strftime("%H:%M:%S"), self.address_string(), fmt % args))
+        sys.stderr.flush()
 
 
 socketserver.TCPServer.allow_reuse_address = True

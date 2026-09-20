@@ -835,3 +835,78 @@ D14〜D16 の「GeoJSON ソースが永久に読み込み完了しない」の�
 ベクタタイルも同じワーカーを通るので、**PMTiles にしても直らない可能性がある**。
 パネルにはワーカー自体の起動テスト（`new Worker(blob, {type:'module'})`）を残してあり、
 次の確認で判定できる。
+
+---
+
+## D18 — 原因判明：MapLibre のワーカーが 404 だった（2026-09-20）
+
+D14 から続いていた「ベクタが一切描かれない」の原因が、サーバのアクセスログで確定した。
+
+```
+16:08:12  192.168.11.2  code 404, message File not found
+16:08:12  192.168.11.2  "GET /spatialid/assets/maplibre-gl-worker.mjs HTTP/1.1" 404 -
+```
+
+**MapLibre 6 自身のワーカーファイルがビルド成果物に無かった。**
+
+### なぜこうなるか
+
+MapLibre 6 は **main / shared / worker の3分割配布**で、ワーカーの場所を
+自分の `import.meta.url` から実行時に導く：
+
+```js
+let e = import.meta.url;
+let t = e.endsWith("-dev.mjs") ? "maplibre-gl-worker-dev.mjs" : "maplibre-gl-worker.mjs";
+return new URL(`./${t}`, e).href;
+```
+
+Vite が MapLibre をバンドルに取り込むと `import.meta.url` は `assets/index.js` になり、
+**存在しない `assets/maplibre-gl-worker.mjs`** を探す。文字列を実行時に組み立てるので、
+バンドラは静的に拾えず、何も警告しない。
+
+### これで全部説明が付く
+
+- ラスタ（空中写真）は出る——ワーカーを使わないから
+- **GeoJSON もベクタタイルも同じように沈黙**——どちらもワーカーでタイル化する
+- `map.on('error')` が何も出さない——**MapLibre はワーカーの読み込み失敗を error に出さない**
+- `isSourceLoaded=false` のまま、`idle` も来ない——ワーカーの応答を待ち続ける
+- 私の汎用モジュールワーカー検査は `動作OK(pong)` ——ブラウザは正常。**MapLibre 固有の問題**
+
+D14 の「`getSource._data`」と D16 の「セルが写真に埋もれる」は**それぞれ実在するが別の**
+バグで、直したのは正しい。しかしこの404が下にあり続けたので、直しても絵は出なかった。
+
+### 対応
+
+```js
+import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url';
+maplibregl.setWorkerUrl(maplibreWorkerUrl);
+```
+
+`?url` で Vite に資産として出させ、その場所を明示的に教える。
+ビルド出力に `assets/maplibre-gl-worker.mjs`（19 kB）が現れるようになった。
+
+### 何が悪かったか（手順の反省）
+
+**サーバのアクセスログを最初から取っていれば、1往復で終わっていた。**
+`scripts/serve.py` の `log_message` を最初から潰していたのが失策。
+ブラウザが目視できない環境では、**サーバ側のログが唯一の客観的な証拠**になる。
+推測で6往復した後、ログを有効にした1回で確定した。
+
+### 再発防止：ビルド成果物そのものを検証する
+
+`spatialid/test/build.test.mjs`（ブラウザ不要）：
+
+- `index.html` が参照するアセットが全部存在する
+- **MapLibre のワーカーが出力されている**（無ければ失敗。この404を直接捕まえる）
+- バンドルが参照する `assets/` のファイルが全部存在する
+- ファイル名にハッシュが入っていない（古い index.html が404になるのを防ぐ）
+
+`npm test` は これと PMTiles 検証・式検証で **16件**になった。
+
+### 教訓（cafebabe 還元候補）
+
+- **MapLibre 6 + Vite では `setWorkerUrl` を明示する。** 分割配布のワーカーは
+  バンドラが静的に拾えず、404 になっても MapLibre は沈黙する
+- **MapLibre はワーカーの読み込み失敗を `error` イベントに出さない。**
+  「ラスタは出るがベクタが出ない・idle が来ない」を見たら、まずワーカーの 404 を疑う
+- **ローカル開発サーバのアクセスログを潰さない。**

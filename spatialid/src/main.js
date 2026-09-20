@@ -7,6 +7,12 @@
  */
 import * as maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
+// MapLibre 6 は main / shared / worker の3分割配布で、ワーカーの場所を自分の
+// import.meta.url から導く。Vite がバンドルに取り込むと import.meta.url は
+// assets/index.js になり、存在しない assets/maplibre-gl-worker.mjs を探して
+// 404 になる——ワーカーが起動せず、ベクタが一切描かれないまま沈黙する。
+// ?url で Vite にワーカーを資産として出させ、その場所を明示的に教える。
+import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url';
 import { Protocol } from 'pmtiles';
 import { Z, x2lon, y2lat, DIVERGING, SEQ, METRICS, boundsOf, fillExpr, zoomHint,
          CELL_OPACITY, photoOpacity } from './data.js';
@@ -76,7 +82,28 @@ try {
   workerVerdict = `生成できず: ${err.message}`;
 }
 
+maplibregl.setWorkerUrl(maplibreWorkerUrl);
 maplibregl.addProtocol('pmtiles', new Protocol().tile);
+
+/*
+ * MapLibre を通さずに PMTiles を直接読んでみる。
+ * ここが通れば、ファイル・サーバ(Range)・pmtiles ライブラリは無実で、
+ * 詰まっているのは MapLibre 側だと確定する。
+ */
+let pmtilesVerdict = '検査中';
+(async () => {
+  try {
+    const { PMTiles } = await import('pmtiles');
+    const pm = new PMTiles(new URL(TILES, location.href).href);
+    const h = await pm.getHeader();
+    const t = await pm.getZxy(10, 914, 375);   // 札幌を含む z10 タイル
+    pmtilesVerdict = `直読みOK（z${h.minZoom}-${h.maxZoom}, tileType=${h.tileType}, `
+                   + `札幌z10タイル=${t && t.data ? t.data.byteLength + 'バイト' : 'なし'}）`;
+  } catch (err) {
+    pmtilesVerdict = `直読み失敗: ${err && err.message ? err.message : err}`;
+  }
+  console.log('[doverture] PMTiles 直読み: ' + pmtilesVerdict);
+})();
 
 const map = new maplibregl.Map({
   container: 'map',
@@ -257,7 +284,10 @@ map.on('load', async () => {
       `タイル読込済=${q(() => map.areTilesLoaded(), '?')}`,
       `ソース内地物=${q(() => map.querySourceFeatures('cells', { sourceLayer: SRC_LAYER }).length, -1)}`,
       `描画地物=${drawn}`,
-      `モジュールworker=${workerVerdict}`
+      `モジュールworker=${workerVerdict}`,
+      `PMTiles直読み=${pmtilesVerdict}`,
+      `worker数=${q(() => maplibregl.getWorkerCount(), '?')}`,
+      `workerURL=${q(() => maplibregl.getWorkerUrl(), '?')}`
     ].join(' / ');
     console.log('[doverture] 状態: ' + state);
     if (drawn > 0) {

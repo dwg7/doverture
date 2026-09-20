@@ -16,9 +16,14 @@ export default defineConfig({
     emptyOutDir: true,
     rollupOptions: {
       output: {
-        entryFileNames: 'assets/app.js',
+        // ハッシュは使わない（古い index.html が存在しないファイルを指して真っ白に
+        // なるのを避ける）。ただし **リテラルの固定名にはしない** ——
+        // MapLibre は自分のワーカーを assets/maplibre-gl-worker.mjs という
+        // 名前で参照するので、名前を潰すと 404 になり、ワーカーが起動せず、
+        // ベクタが一切描かれないまま沈黙する（実際にそうなった）。
+        entryFileNames: 'assets/[name].js',
         chunkFileNames: 'assets/[name].js',
-        assetFileNames: 'assets/app.[ext]',
+        assetFileNames: 'assets/[name].[ext]',
       },
     },
   },
