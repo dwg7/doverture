@@ -67,6 +67,11 @@ export const NONEMPTY = ['any', ['>', n('bv'), 0], ['>', n('ov'), 0]];
  * 任意の明るさの背景から抜けるには帯の上側が要る。
  * 色だけに頼らないよう、Overture は破線にしてある（二重符号化）。
  */
+/** Overture の `@geometry_source` のうち、OSM を表す値。 */
+export const OSM_SOURCE = 'OpenStreetMap';
+export const IS_OSM = ['==', ['get', '@geometry_source'], OSM_SOURCE];
+export const IS_NOT_OSM = ['!=', ['get', '@geometry_source'], OSM_SOURCE];
+
 export const FOOTPRINT = {
   // **z16 未満で出してはいけない。**
   // bvmap の BldA は z16 以外では間引かれている（同じ地面で z14 は z16 の 4.5%、
@@ -75,8 +80,16 @@ export const FOOTPRINT = {
   // 再現する**。ソース側も minzoom:16/maxzoom:16 に絞り、MapLibre が z16 タイルしか
   // 使えないようにしてある。
   minzoom: 16,
-  bvmap:    { color: '#3ee0e0', name: 'bvmap（国土地理院）の建物' },
-  overture: { color: '#ff5a5a', name: 'Overture の建物', dash: [2, 1.6] }
+  /*
+   * 色は「どのデータセットか」、線種は「誰が見たか」を表す。
+   * OSM は人が現地・画像を見て引いた線なので実線、Microsoft と研究データは
+   * 自動検出で**誰も検証していない**ので点線。D12 で共和町の Microsoft 検出が
+   * 16点中15点まで建物でなかったことが、そのまま線種に出る。
+   */
+  bvmap:       { color: '#3ee0e0', name: 'bvmap（国土地理院）', dash: null },
+  overtureOsm: { color: '#ff5a5a', name: 'Overture — OSM 由来（人が引いた）', dash: null },
+  overtureAi:  { color: '#ff5a5a', name: 'Overture — Microsoft・研究データ（未検証）',
+                 dash: [0.6, 1.8], cap: 'round' }
 };
 
 /** bbox [w,s,e,n] -> fitBounds に渡す [[w,s],[e,n]]。 */

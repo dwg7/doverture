@@ -87,12 +87,20 @@ t('建物輪郭の設定が、写真の上で読める条件を満たす', () =>
   // Overture を並べて見せないために、輪郭は z16 未満で出してはいけない。
   assert.ok(FOOTPRINT.minzoom >= 16,
             `輪郭の minzoom が ${FOOTPRINT.minzoom}：z16 未満では bvmap が間引かれている`);
-  const a = FOOTPRINT.bvmap.color, b = FOOTPRINT.overture.color;
-  assert.notEqual(a, b);
-  // 色だけに頼らない（二重符号化）。Overture は破線。
-  assert.ok(Array.isArray(FOOTPRINT.overture.dash) && FOOTPRINT.overture.dash.length === 2,
-            'Overture に破線指定が無い（色だけの区別になる）');
-  assert.ok(!FOOTPRINT.bvmap.dash, 'bvmap は実線のままであるべき');
+  // 色＝データセット、線種＝誰が見たか。3本が互いに区別できること。
+  const styles = [FOOTPRINT.bvmap, FOOTPRINT.overtureOsm, FOOTPRINT.overtureAi];
+  for (let i = 0; i < styles.length; i++) {
+    for (let j = i + 1; j < styles.length; j++) {
+      const differs = styles[i].color !== styles[j].color
+                   || JSON.stringify(styles[i].dash) !== JSON.stringify(styles[j].dash);
+      assert.ok(differs, `${styles[i].name} と ${styles[j].name} が同じ見た目`);
+    }
+  }
+  assert.notEqual(FOOTPRINT.bvmap.color, FOOTPRINT.overtureOsm.color, 'データセットは色で分ける');
+  assert.equal(FOOTPRINT.overtureOsm.color, FOOTPRINT.overtureAi.color,
+               'Overture 内は同じ色で、線種だけを変える');
+  assert.ok(!FOOTPRINT.overtureOsm.dash, '人が引いた線は実線');
+  assert.ok(Array.isArray(FOOTPRINT.overtureAi.dash), '未検証のものは点線でなければならない');
   // 高ズームではセルが薄くなり、輪郭が主役になること
   const st = CELL_OPACITY.slice(3);
   const last = st[st.length - 1];

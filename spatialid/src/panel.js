@@ -15,8 +15,8 @@ import { Protocol } from 'pmtiles';
 // 導く。バンドルに取り込むと存在しないパスを見に行って 404 になり、ワーカーが
 // 起動しないまま沈黙する（DECISIONS.md D18/D19）。明示的に教える。
 import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url';
-import { Z, x2lon, y2lat, DIVERGING, SEQ, METRICS, NONEMPTY, FOOTPRINT, boundsOf, fillExpr,
-         zoomHint, CELL_OPACITY, photoOpacity } from './data.js';
+import { Z, x2lon, y2lat, DIVERGING, SEQ, METRICS, NONEMPTY, FOOTPRINT, IS_OSM, IS_NOT_OSM,
+         boundsOf, fillExpr, zoomHint, CELL_OPACITY, photoOpacity } from './data.js';
 
 maplibregl.setWorkerUrl(maplibreWorkerUrl);
 maplibregl.addProtocol('pmtiles', new Protocol().tile);
@@ -192,15 +192,18 @@ export function createPanel(container, opts = {}) {
     }
     legend.appendChild(el('div', 'dvt-sw', `<i style="background:#383835"></i>建物ゼロ / 算出できず`));
     if (showOutlines.checked) {
-      legend.appendChild(el('div', 'dvt-sw',
-        `<i style="background:transparent;border-bottom:2px solid ${FOOTPRINT.bvmap.color};border-radius:0"></i>`
-        + `${FOOTPRINT.bvmap.name}`));
-      legend.appendChild(el('div', 'dvt-sw',
-        `<i style="background:repeating-linear-gradient(90deg,${FOOTPRINT.overture.color} 0 4px,transparent 4px 7px);`
-        + `height:2px;border-radius:0"></i>${FOOTPRINT.overture.name}`));
+      const solid = (c) => `background:${c};height:2px;border-radius:0`;
+      const dotted = (c) => `background:repeating-linear-gradient(90deg,${c} 0 2px,transparent 2px 5px);`
+                          + 'height:2px;border-radius:0';
+      for (const [style, f] of [[solid(FOOTPRINT.bvmap.color), FOOTPRINT.bvmap],
+                                [solid(FOOTPRINT.overtureOsm.color), FOOTPRINT.overtureOsm],
+                                [dotted(FOOTPRINT.overtureAi.color), FOOTPRINT.overtureAi]]) {
+        legend.appendChild(el('div', 'dvt-sw', `<i style="${style}"></i>${f.name}`));
+      }
       legend.appendChild(el('div', 'dvt-hint',
-        'bvmap は z16 タイルでしか全部の建物を持たないため、輪郭はそこまで寄ると出ます。'
-        + '間引かれたものを並べて見せないためです。'));
+        '色＝どのデータセットか、線種＝誰が見たか。点線は自動検出で、'
+        + '誰も検証していません。<br>'
+        + 'bvmap は z16 タイルでしか全部の建物を持たないため、輪郭はそこまで寄ると出ます。'));
     }
   }
 
@@ -250,17 +253,29 @@ export function createPanel(container, opts = {}) {
         minzoom: FOOTPRINT.minzoom,
         paint: {
           'line-color': FOOTPRINT.bvmap.color,
-          'line-width': ['interpolate', ['linear'], ['zoom'], 14, 0.8, 17, 1.8],
+          'line-width': ['interpolate', ['linear'], ['zoom'], 16, 0.9, 19, 2.0],
+          'line-opacity': 0.95
+        }
+      });
+      // Overture は出所で線種を分ける。OSM 由来＝人が引いた線は実線、
+      // Microsoft・研究データ＝自動検出で誰も検証していないものは点線。
+      map.addLayer({
+        id: 'ov-outline-osm', type: 'line', source: 'overturesrc', 'source-layer': 'building',
+        minzoom: FOOTPRINT.minzoom, filter: IS_OSM,
+        paint: {
+          'line-color': FOOTPRINT.overtureOsm.color,
+          'line-width': ['interpolate', ['linear'], ['zoom'], 16, 1.0, 19, 2.2],
           'line-opacity': 0.95
         }
       });
       map.addLayer({
-        id: 'ov-outline', type: 'line', source: 'overturesrc', 'source-layer': 'building',
-        minzoom: FOOTPRINT.minzoom,
+        id: 'ov-outline-ai', type: 'line', source: 'overturesrc', 'source-layer': 'building',
+        minzoom: FOOTPRINT.minzoom, filter: IS_NOT_OSM,
+        layout: { 'line-cap': FOOTPRINT.overtureAi.cap },
         paint: {
-          'line-color': FOOTPRINT.overture.color,
-          'line-width': ['interpolate', ['linear'], ['zoom'], 14, 1.0, 17, 2.0],
-          'line-dasharray': FOOTPRINT.overture.dash,
+          'line-color': FOOTPRINT.overtureAi.color,
+          'line-width': ['interpolate', ['linear'], ['zoom'], 16, 1.4, 19, 2.8],
+          'line-dasharray': FOOTPRINT.overtureAi.dash,
           'line-opacity': 0.95
         }
       });
@@ -317,7 +332,7 @@ export function createPanel(container, opts = {}) {
   showEmpty.onchange = () => guard('指標の適用', apply);
   showOutlines.onchange = () => guard('建物輪郭の切り替え', () => {
     const v = showOutlines.checked ? 'visible' : 'none';
-    for (const id of ['bv-outline', 'ov-outline']) {
+    for (const id of ['bv-outline', 'ov-outline-osm', 'ov-outline-ai']) {
       if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', v);
     }
     apply();
