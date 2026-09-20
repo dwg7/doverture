@@ -40,17 +40,17 @@ const RATIO = ['/', n('ov'), n('bv')];
 const SHARE = (k) => ['*', ['/', n(k), n('ov')], 100];
 
 export const METRICS = [
-  { key: 'ratio', name: 'どちらが多く捉えているか（Overture ÷ bvmap）',
+  { key: 'ratio', name: 'Overture ÷ bvmap',
     kind: 'diverging', value: RATIO, valid: ['>', n('bv'), 0] },
-  { key: 'bv', name: 'bvmap 建物数（国土地理院）', kind: 'seq',
+  { key: 'bv', name: 'bvmap 建物数', kind: 'seq',
     value: n('bv'), valid: true, stops: [1, 5, 20, 80, 300, 1200], unit: '件' },
   { key: 'ov', name: 'Overture 建物数', kind: 'seq',
     value: n('ov'), valid: true, stops: [1, 5, 20, 80, 300, 1200], unit: '件' },
-  { key: 'oth', name: 'Microsoft ほか（OSM・東アジア学術以外）', kind: 'seq',
+  { key: 'oth', name: 'Microsoft ほかの件数', kind: 'seq',
     value: n('oth'), valid: true, stops: [1, 3, 10, 30, 100, 400], unit: '件' },
-  { key: 'othShare', name: 'Overture に占める Microsoft ほかの割合', kind: 'seq',
+  { key: 'othShare', name: 'Microsoft ほかの割合', kind: 'seq',
     value: SHARE('oth'), valid: ['>', n('ov'), 0], stops: [0, 5, 10, 20, 35, 50], unit: '%' },
-  { key: 'osmShare', name: 'Overture に占める OSM 由来の割合', kind: 'seq',
+  { key: 'osmShare', name: 'OSM 由来の割合', kind: 'seq',
     value: SHARE('osm'), valid: ['>', n('ov'), 0], stops: [40, 60, 75, 85, 95, 100], unit: '%' }
 ];
 
@@ -86,9 +86,9 @@ export const FOOTPRINT = {
    * 自動検出で**誰も検証していない**ので点線。D12 で共和町の Microsoft 検出が
    * 16点中15点まで建物でなかったことが、そのまま線種に出る。
    */
-  bvmap:       { color: '#3ee0e0', name: 'bvmap（国土地理院）', dash: null },
-  overtureOsm: { color: '#ff5a5a', name: 'Overture — OSM 由来（人が引いた）', dash: null },
-  overtureAi:  { color: '#ff5a5a', name: 'Overture — Microsoft・研究データ（未検証）',
+  bvmap:       { color: '#3ee0e0', name: 'bvmap', dash: null },
+  overtureOsm: { color: '#ff5a5a', name: 'Overture（OSM 由来）', dash: null },
+  overtureAi:  { color: '#ff5a5a', name: 'Overture（未検証）',
                  dash: [0.6, 1.8], cap: 'round' }
 };
 

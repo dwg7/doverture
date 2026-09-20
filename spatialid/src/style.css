@@ -30,7 +30,7 @@
   border: 1px solid var(--dvt-line); border-radius: 8px;
   backdrop-filter: blur(8px);
 }
-.dvt-panel { top: 10px; left: 10px; width: 262px; max-height: calc(100% - 20px); overflow: auto; padding: 11px 13px; }
+.dvt-panel { top: 10px; left: 10px; width: 214px; max-height: calc(100% - 20px); overflow: auto; padding: 11px 13px; }
 .dvt-readout { bottom: 10px; left: 10px; width: 262px; padding: 11px 13px; }
 .dvt-badge { top: 10px; right: 54px; padding: 5px 9px; font-size: 11px; color: var(--dvt-ink-2); border-radius: 6px; pointer-events: none; }
 .dvt-banner {
@@ -51,19 +51,14 @@
   background: var(--dvt-surface); color: var(--dvt-ink);
   border: 1px solid var(--dvt-line); border-radius: 5px;
 }
-.dvt-howto { margin: 2px 0 4px; border: 1px solid var(--dvt-line); border-radius: 6px; padding: 7px 9px; }
-.dvt-howto summary { font-size: 11px; color: var(--dvt-ink-2); cursor: pointer; }
-.dvt-howto table { width: 100%; border-collapse: collapse; margin: 7px 0 0; font-size: 10.5px; }
-.dvt-howto th { text-align: left; font-weight: 600; color: var(--dvt-muted); padding-bottom: 3px; }
-.dvt-howto td { color: var(--dvt-ink-2); padding: 1px 6px 1px 0; vertical-align: top; }
-.dvt-howto p { margin: 7px 0 0; font-size: 10.5px; color: var(--dvt-muted); }
-.dvt-howto b { color: var(--dvt-ink-2); font-weight: 600; }
 
 .dvt-legend { margin-top: 9px; display: flex; flex-direction: column; gap: 3px; }
 .dvt-sw { display: flex; align-items: center; gap: 7px; font-size: 11px; color: var(--dvt-ink-2); }
 .dvt-sw i { width: 13px; height: 13px; border-radius: 3px; flex: 0 0 auto; }
 .dvt-bar { height: 10px; border-radius: 3px; margin: 2px 0 4px; }
-.dvt-ends { display: flex; justify-content: space-between; font-size: 10px; color: var(--dvt-muted); }
+.dvt-ends { display: flex; justify-content: space-between; gap: 4px;
+            font-size: 10px; color: var(--dvt-muted); }
+.dvt-ends span:nth-child(2) { text-align: center; }
 .dvt-status { margin: 11px 0 0; font-size: 11px; color: var(--dvt-muted); }
 
 .dvt-readout h2 { margin: 0 0 6px; font-size: 13px; font-weight: 600; }

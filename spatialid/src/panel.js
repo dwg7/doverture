@@ -69,51 +69,34 @@ export function createPanel(container, opts = {}) {
   root.append(mapEl, panel, readout, banner, badge);
   container.appendChild(root);
 
-  panel.append(
-    el('h1', 'dvt-title', 'doverture<span>北海道 z14 空間IDセル</span>'),
-    el('details', 'dvt-howto', `<summary>使い方</summary>
-      <table>
-        <tr><th>ズーム</th><th>セルの1辺</th><th>できること</th></tr>
-        <tr><td>z5–7</td><td>1–4px</td><td>全道の地肌として分布を読む</td></tr>
-        <tr><td>z8–10</td><td>8–32px</td><td>振興局・市町村の傾向</td></tr>
-        <tr><td>z11–13</td><td>64–256px</td><td>セルを見て内訳</td></tr>
-        <tr><td>z14–16</td><td>512px〜</td><td>写真で土地の様子を確認</td></tr>
-        <tr><td>z17–19</td><td>—</td><td><b>建物の輪郭</b>で1棟ずつ突き合わせ</td></tr>
-      </table>
-      <p><b>セルはどのズームでも z14（1辺 約1.8km）で固定</b>です。引いても足し上げ
-      ないので、<b>ズームを変えても見ている統計は変わりません</b>——模様が変われば
-      それはデータが変わったということです。引くとセルは数pxまで細かくなりますが、
-      陸を隙間なく覆うので地肌として読めます。<br>
-      <b>セルの上を通るだけで数字</b>が出ます。建物ゼロのセルは既定で隠しています
-      （全体の約半分）。面は<b>常に透過</b>していて、下の空中写真が透けます。</p>`)
-  );
+  panel.appendChild(el('h1', 'dvt-title', 'doverture<span>北海道 z14 セル</span>'));
   const mkSelect = (labelText) => {
     panel.appendChild(el('label', null, labelText));
     const s = document.createElement('select');
     panel.appendChild(s);
     return s;
   };
-  const jump = mkSelect('市区町村へ移動');
+  const jump = mkSelect('市区町村');
   jump.add(new Option('— 選ぶ —', ''));
   const sel = mkSelect('指標');
   for (const m of METRICS) sel.add(new Option(m.name, m.key));
   const legend = el('div', 'dvt-legend');
   panel.appendChild(legend);
   const basemap = mkSelect('下図');
-  for (const [v, t] of [['auto', '自動（引くとデータ／寄ると写真）'], ['photo', '写真を常に濃く'], ['none', '写真なし']]) {
+  for (const [v, t] of [['auto', '自動'], ['photo', '写真を濃く'], ['none', '写真なし']]) {
     basemap.add(new Option(t, v));
   }
   const outlineLabel = el('label', 'dvt-row');
   const showOutlines = document.createElement('input');
   showOutlines.type = 'checkbox';
   showOutlines.checked = true;
-  outlineLabel.append(showOutlines, document.createTextNode(' 建物の輪郭を重ねる（寄ると出ます）'));
+  outlineLabel.append(showOutlines, document.createTextNode(' 建物の輪郭（z16〜）'));
   panel.appendChild(outlineLabel);
 
   const showEmptyLabel = el('label', 'dvt-row');
   const showEmpty = document.createElement('input');
   showEmpty.type = 'checkbox';
-  showEmptyLabel.append(showEmpty, document.createTextNode(' 建物ゼロのセルも塗る'));
+  showEmptyLabel.append(showEmpty, document.createTextNode(' ゼロのセルも塗る'));
   panel.appendChild(showEmptyLabel);
   const status = el('p', 'dvt-status', '読み込み中…');
   panel.appendChild(status);
@@ -186,28 +169,30 @@ export function createPanel(container, opts = {}) {
 
   function drawLegend(m) {
     legend.innerHTML = '';
+    // 階級の境目は読み出し（セルに触れば比率が出る）で分かるので、凡例は帯と
+    // 向きだけにして文字を削る。正確な境界は帯の title に入れてある。
+    const bar = el('div', 'dvt-bar');
     if (m.kind === 'diverging') {
-      for (const [, color, label] of DIVERGING) legend.appendChild(el('div', 'dvt-sw', `<i style="background:${color}"></i>${label}`));
+      const colors = DIVERGING.map(([, c]) => c);
+      bar.style.background = `linear-gradient(90deg, ${colors.map((c, i) =>
+        `${c} ${(i / colors.length) * 100}% ${((i + 1) / colors.length) * 100}%`).join(',')})`;
+      bar.title = DIVERGING.map(([, , label]) => label).join('\n');
+      legend.append(bar, el('div', 'dvt-ends',
+        '<span>bvmap 多い</span><span>互角</span><span>Overture 多い</span>'));
     } else {
-      const bar = el('div', 'dvt-bar');
       bar.style.background = `linear-gradient(90deg, ${SEQ.join(',')})`;
       legend.append(bar, el('div', 'dvt-ends',
         `<span>${m.stops[0]}${m.unit}</span><span>${m.stops[m.stops.length - 1]}${m.unit}〜</span>`));
     }
-    legend.appendChild(el('div', 'dvt-sw', `<i style="background:#383835"></i>建物ゼロ / 算出できず`));
     if (showOutlines.checked) {
       const solid = (c) => `background:${c};height:2px;border-radius:0`;
       const dotted = (c) => `background:repeating-linear-gradient(90deg,${c} 0 2px,transparent 2px 5px);`
                           + 'height:2px;border-radius:0';
-      for (const [style, f] of [[solid(FOOTPRINT.bvmap.color), FOOTPRINT.bvmap],
-                                [solid(FOOTPRINT.overtureOsm.color), FOOTPRINT.overtureOsm],
-                                [dotted(FOOTPRINT.overtureAi.color), FOOTPRINT.overtureAi]]) {
-        legend.appendChild(el('div', 'dvt-sw', `<i style="${style}"></i>${f.name}`));
+      for (const [style, name] of [[solid(FOOTPRINT.bvmap.color), 'bvmap'],
+                                   [solid(FOOTPRINT.overtureOsm.color), 'Overture（OSM）'],
+                                   [dotted(FOOTPRINT.overtureAi.color), 'Overture（未検証）']]) {
+        legend.appendChild(el('div', 'dvt-sw', `<i style="${style}"></i>${name}`));
       }
-      legend.appendChild(el('div', 'dvt-hint',
-        '色＝どのデータセットか、線種＝誰が見たか。点線は自動検出で、'
-        + '誰も検証していません。<br>'
-        + 'bvmap は z16 タイルでしか全部の建物を持たないため、輪郭はそこまで寄ると出ます。'));
     }
   }
 
@@ -227,16 +212,15 @@ export function createPanel(container, opts = {}) {
     readout.innerHTML = `
       <h2>${p.name || p.code}　<span style="color:var(--dvt-muted);font-weight:400">空間ID z${lv}（1辺 約1.8km）</span></h2>
       <table>
-        <tr><td>bvmap（国土地理院）</td><td>${(+p.bv).toLocaleString()} 件</td></tr>
+        <tr><td>bvmap</td><td>${(+p.bv).toLocaleString()} 件</td></tr>
         <tr><td>Overture 合計</td><td>${(+p.ov).toLocaleString()} 件</td></tr>
         <tr><td>　OSM 由来</td><td>${(+p.osm).toLocaleString()}（${pct(+p.osm, +p.ov)}）</td></tr>
         <tr><td>　東アジア学術</td><td>${(+p.eab).toLocaleString()}（${pct(+p.eab, +p.ov)}）</td></tr>
         <tr><td>　Microsoft ほか</td><td>${(+p.oth).toLocaleString()}（${pct(+p.oth, +p.ov)}）</td></tr>
         <tr><td>Overture ÷ bvmap</td><td>${+p.bv > 0 ? (+p.ov / +p.bv).toFixed(2) : '—'}</td></tr>
-        <tr><td>建物面積 bvmap / Overture</td><td>${Math.round(+p.bvA / 1000).toLocaleString()} / ${Math.round(+p.ovA / 1000).toLocaleString()} 千m²</td></tr>
+        <tr><td>建物面積 bvmap / Ov</td><td>${Math.round(+p.bvA / 1000).toLocaleString()} / ${Math.round(+p.ovA / 1000).toLocaleString()} 千m²</td></tr>
       </table>
-      <a href="#" class="dvt-zoom">この区画を拡大して写真で見る</a>
-      <p class="dvt-hint">拡大すると下図の空中写真で、実際に建物があるか確かめられます。</p>`;
+      <a href="#" class="dvt-zoom">拡大して写真で見る</a>`;
     readout.querySelector('.dvt-zoom').onclick = (ev) => {
       ev.preventDefault();
       if (lngLat) map.easeTo({ center: lngLat, zoom: Math.max(map.getZoom(), 15.5), duration: 800 });
