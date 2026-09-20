@@ -37,11 +37,19 @@ export const SEQ = ['#184f95', '#256abf', '#3987e5', '#6da7ec', '#9ec5f4', '#cde
  */
 const n = (k) => ['to-number', ['get', k], 0];
 const RATIO = ['/', n('ov'), n('bv')];
+// 面積比。取得精度の差に鈍い方の物差し（D31）
+const AREA_RATIO = ['/', n('ovA'), n('bvA')];
 const SHARE = (k) => ['*', ['/', n(k), n('ov')], 100];
 
 export const METRICS = [
-  { key: 'ratio', name: 'Overture ÷ bvmap',
-    kind: 'diverging', value: RATIO, valid: ['>', n('bv'), 0] },
+  { key: 'ratio', name: 'Overture ÷ bvmap（件数）',
+    kind: 'diverging', value: RATIO, valid: ['>', n('bv'), 0],
+    note: '件数の比。bvmap は都市計画区域の外では小さな建物を採っていないため、'
+        + '区域外では分母が小さくなって比が上がる（D30）。密度を揃えても内外で +0.52 違う。' },
+  { key: 'aratio', name: 'Overture ÷ bvmap（面積）',
+    kind: 'diverging', value: AREA_RATIO, valid: ['>', n('bvA'), 0],
+    note: '延べ面積の比。小さな建物は面積をほとんど持たないので、bvmap の取得精度の差に鈍い。'
+        + '区域の内外差は件数比の +0.52 に対して +0.11 まで落ちる。' },
   { key: 'bv', name: 'bvmap 建物数', kind: 'seq',
     value: n('bv'), valid: true, stops: [1, 5, 20, 80, 300, 1200], unit: '件' },
   { key: 'ov', name: 'Overture 建物数', kind: 'seq',
@@ -151,6 +159,25 @@ export const CELL_OPACITY = [
 export const PHOTO_OPACITY = [
   'interpolate', ['linear'], ['zoom'],
   2, 0.55, 8, 0.62, 11, 0.75, 13, 0.88, 15, 0.96
+];
+
+/*
+ * 低ズームの下図は、色と明るさを落として後ろへ下げる。
+ *
+ * 実画面で撮って分かったこと（D31）：z6 の海域に、四角いタイル単位の色違いが
+ * はっきり出る。低ズームの空中写真が衛星モザイクと地理院タイルの混成だからで、
+ * 上流の素性であってこちらのバグではない。
+ *
+ * D29 で低ズームが「全道の地肌を読む」主役の縮尺になったので、そこで下図が
+ * 継ぎ目を主張してくるのは邪魔でしかない。寄ったときの下図は建物を確かめる
+ * 証拠なので色は要るが、引いたときの下図は文脈でしかない。**引いたら彩度と
+ * 明るさを落とし、寄るほど元に戻す。**
+ */
+export const PHOTO_SATURATION = [
+  'interpolate', ['linear'], ['zoom'], 4, -0.85, 9, -0.70, 13, 0
+];
+export const PHOTO_BRIGHTNESS_MAX = [
+  'interpolate', ['linear'], ['zoom'], 4, 0.70, 9, 0.82, 13, 1
 ];
 
 /** 下図の見せ方。auto はズーム連動、photo は常に濃く、none は消す。 */

@@ -16,7 +16,8 @@ import { Protocol } from 'pmtiles';
 // 起動しないまま沈黙する（DECISIONS.md D18/D19）。明示的に教える。
 import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url';
 import { Z, x2lon, y2lat, DIVERGING, SEQ, METRICS, NONEMPTY, FOOTPRINT, IS_OSM, IS_NOT_OSM,
-         boundsOf, fillExpr, zoomHint, CELL_OPACITY, photoOpacity } from './data.js';
+         boundsOf, fillExpr, zoomHint, CELL_OPACITY, photoOpacity,
+         PHOTO_SATURATION, PHOTO_BRIGHTNESS_MAX } from './data.js';
 
 maplibregl.setWorkerUrl(maplibreWorkerUrl);
 maplibregl.addProtocol('pmtiles', new Protocol().tile);
@@ -79,7 +80,11 @@ export function createPanel(container, opts = {}) {
   const jump = mkSelect('市区町村');
   jump.add(new Option('— 選ぶ —', ''));
   const sel = mkSelect('指標');
-  for (const m of METRICS) sel.add(new Option(m.name, m.key));
+  for (const m of METRICS) {
+    const o = new Option(m.name, m.key);
+    if (m.note) o.title = m.note;     // 注意書きは画面に出さず、指し示したときだけ出す
+    sel.add(o);
+  }
   const legend = el('div', 'dvt-legend');
   panel.appendChild(legend);
   const basemap = mkSelect('下図');
@@ -139,7 +144,9 @@ export function createPanel(container, opts = {}) {
       },
       layers: [
         { id: 'bg', type: 'background', paint: { 'background-color': '#1a1a19' } },
-        { id: 'aerial', type: 'raster', source: 'aerial', paint: { 'raster-opacity': 0.18 } }
+        { id: 'aerial', type: 'raster', source: 'aerial',
+          paint: { 'raster-opacity': 0.18, 'raster-saturation': PHOTO_SATURATION,
+                   'raster-brightness-max': PHOTO_BRIGHTNESS_MAX } }
       ]
     },
     center: [142.6, 43.4], zoom: 6.2, maxZoom: 19,

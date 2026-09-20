@@ -21,72 +21,25 @@ D28 で分かったのは「bvmap の建物面積の床（セルごとの p5）�
 
 床の値は scripts/detect_capture_scale.py が書く build/floor.json を読む。
 """
-import glob, json, math, os
+import json, math, os, sys
 from collections import defaultdict
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-KSJ = "/Volumes/Migrate-2025-04/doverture-tilecache/ksj/A09-18_01/A09-18_01_GML/GeoJSON"
+sys.path.insert(0, os.path.join(ROOT, "scripts"))
+from a09_coverage import load as a09_load, coverage as a09_coverage, KSJ   # noqa: E402
+
 FLOOR = os.path.join(ROOT, "build", "floor.json")
 Z = 14
 N = 1 << Z
-SUB = 4                     # セルを SUB×SUB 点で標本化して被覆率を出す
 
-def lon2x(lon): return (lon + 180.0) / 360.0 * N
-def lat2y(lat):
-    r = math.radians(lat)
-    return (1 - math.log(math.tan(r) + 1 / math.cos(r)) / math.pi) / 2 * N
 def y2lat(y):
     n = math.pi - 2 * math.pi * y / N
     return math.degrees(math.atan(0.5 * (math.exp(n) - math.exp(-n))))
-def km2(y):
-    s = 40075016.686 * math.cos(math.radians(y2lat(y + 0.5))) / N
-    return s * s / 1e6
 
-# ---- A09 を読み、z14 のタイル座標へ落とす -----------------------------------
-files = sorted(glob.glob(os.path.join(KSJ, "*.geojson")))
-assert files, f"A09 が見つからない: {KSJ}"
-feats = []                                  # [(bbox, [ring, ...])]
-for path in files:
-    for ft in json.load(open(path))["features"]:
-        g = ft["geometry"]
-        polys = [g["coordinates"]] if g["type"] == "Polygon" else g["coordinates"]
-        for poly in polys:
-            rings = [[(lon2x(p[0]), lat2y(p[1])) for p in ring] for ring in poly]
-            xs = [p[0] for r in rings for p in r]; ys = [p[1] for r in rings for p in r]
-            feats.append(((min(xs), min(ys), max(xs), max(ys)), rings))
-print(f"A09 ポリゴン {len(feats):,} 個（{len(files)} 市区町村のファイル）")
-
-bucket = defaultdict(list)                  # z14 セル -> そこに掛かるポリゴン
-for i, (bb, _) in enumerate(feats):
-    for cx in range(int(bb[0]), int(bb[2]) + 1):
-        for cy in range(int(bb[1]), int(bb[3]) + 1):
-            bucket[(cx, cy)].append(i)
-print(f"ポリゴンが掛かる z14 セル {len(bucket):,} 個")
-
-def inside(px, py, rings):
-    """偶奇規則。穴（内環）もそのまま扱える。"""
-    c = False
-    for r in rings:
-        n = len(r)
-        for i in range(n):
-            x0, y0 = r[i]; x1, y1 = r[(i + 1) % n]
-            if (y0 > py) != (y1 > py) and px < (x1 - x0) * (py - y0) / (y1 - y0) + x0:
-                c = not c
-    return c
-
-def coverage(cx, cy):
-    ids = bucket.get((cx, cy))
-    if not ids: return 0.0
-    hit = 0
-    for i in range(SUB):
-        px = cx + (i + 0.5) / SUB
-        for j in range(SUB):
-            py = cy + (j + 0.5) / SUB
-            for k in ids:
-                bb, rings = feats[k]
-                if bb[0] <= px <= bb[2] and bb[1] <= py <= bb[3] and inside(px, py, rings):
-                    hit += 1; break
-    return hit / (SUB * SUB)
+FEATS, BUCKET, NFILES = a09_load()
+print(f"A09 ポリゴン {len(FEATS):,} 個（{NFILES} 市区町村のファイル）")
+print(f"ポリゴンが掛かる z14 セル {len(BUCKET):,} 個")
+def coverage(cx, cy): return a09_coverage(cx, cy, FEATS, BUCKET)
 
 # ---- 床の計測値と突き合わせる ------------------------------------------------
 assert os.path.exists(FLOOR), "build/floor.json が無い。先に scripts/detect_capture_scale.py"
