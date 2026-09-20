@@ -2,7 +2,8 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { PMTiles, FetchSource } from 'pmtiles';
-import { boundsOf, zoomHint, METRICS, DIVERGING, x2lon, y2lat } from '../src/data.js';
+import { boundsOf, zoomHint, METRICS, DIVERGING, FOOTPRINT, CELL_OPACITY, x2lon, y2lat }
+  from '../src/data.js';
 
 const DOCS = new URL('../../docs/', import.meta.url);
 let n = 0;
@@ -79,6 +80,23 @@ t('zoomHint がセルのレベルとpxを返す', () => {
 t('発散尺度の閾値が昇順で、色が7つ', () => {
   assert.equal(DIVERGING.length, 7);
   for (let i = 1; i < DIVERGING.length; i++) assert.ok(DIVERGING[i][0] > DIVERGING[i - 1][0]);
+});
+
+t('建物輪郭の設定が、写真の上で読める条件を満たす', () => {
+  // bvmap の BldA は z16 以外では間引かれている（D2）。間引かれた bvmap と完全な
+  // Overture を並べて見せないために、輪郭は z16 未満で出してはいけない。
+  assert.ok(FOOTPRINT.minzoom >= 16,
+            `輪郭の minzoom が ${FOOTPRINT.minzoom}：z16 未満では bvmap が間引かれている`);
+  const a = FOOTPRINT.bvmap.color, b = FOOTPRINT.overture.color;
+  assert.notEqual(a, b);
+  // 色だけに頼らない（二重符号化）。Overture は破線。
+  assert.ok(Array.isArray(FOOTPRINT.overture.dash) && FOOTPRINT.overture.dash.length === 2,
+            'Overture に破線指定が無い（色だけの区別になる）');
+  assert.ok(!FOOTPRINT.bvmap.dash, 'bvmap は実線のままであるべき');
+  // 高ズームではセルが薄くなり、輪郭が主役になること
+  const st = CELL_OPACITY.slice(3);
+  const last = st[st.length - 1];
+  assert.ok(last <= 0.20, `最高ズームのセル不透明度 ${last} では輪郭が埋もれる`);
 });
 
 t('タイル座標の往復が合う', () => {

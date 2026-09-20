@@ -15,8 +15,8 @@ import { Protocol } from 'pmtiles';
 // 導く。バンドルに取り込むと存在しないパスを見に行って 404 になり、ワーカーが
 // 起動しないまま沈黙する（DECISIONS.md D18/D19）。明示的に教える。
 import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url';
-import { Z, x2lon, y2lat, DIVERGING, SEQ, METRICS, NONEMPTY, boundsOf, fillExpr, zoomHint,
-         CELL_OPACITY, photoOpacity } from './data.js';
+import { Z, x2lon, y2lat, DIVERGING, SEQ, METRICS, NONEMPTY, FOOTPRINT, boundsOf, fillExpr,
+         zoomHint, CELL_OPACITY, photoOpacity } from './data.js';
 
 maplibregl.setWorkerUrl(maplibreWorkerUrl);
 maplibregl.addProtocol('pmtiles', new Protocol().tile);
@@ -77,7 +77,8 @@ export function createPanel(container, opts = {}) {
         <tr><td>z5–7</td><td>z7–9（14–56km）</td><td>全道の分布</td></tr>
         <tr><td>z8–11</td><td>z10–13（3.5–28km）</td><td>振興局・市町村の傾向</td></tr>
         <tr><td>z12–13</td><td>z14（1.8km）</td><td>セルを見て内訳</td></tr>
-        <tr><td>z14–17</td><td>z14（拡大）</td><td>写真で実物を確認</td></tr>
+        <tr><td>z12–16</td><td>z14（拡大）</td><td>写真で土地の様子を確認</td></tr>
+        <tr><td>z17–19</td><td>z14（拡大）</td><td><b>建物の輪郭</b>で1棟ずつ突き合わせ</td></tr>
       </table>
       <p><b>どのズームでもセルは約64px</b>——空間IDの階層をそのままタイルの階層に
       使っているので、引くと粗いセル、寄ると細かいセルに自動で切り替わります。<br>
@@ -100,6 +101,13 @@ export function createPanel(container, opts = {}) {
   for (const [v, t] of [['auto', '自動（引くとデータ／寄ると写真）'], ['photo', '写真を常に濃く'], ['none', '写真なし']]) {
     basemap.add(new Option(t, v));
   }
+  const outlineLabel = el('label', 'dvt-row');
+  const showOutlines = document.createElement('input');
+  showOutlines.type = 'checkbox';
+  showOutlines.checked = true;
+  outlineLabel.append(showOutlines, document.createTextNode(' 建物の輪郭を重ねる（寄ると出ます）'));
+  panel.appendChild(outlineLabel);
+
   const showEmptyLabel = el('label', 'dvt-row');
   const showEmpty = document.createElement('input');
   showEmpty.type = 'checkbox';
@@ -123,6 +131,19 @@ export function createPanel(container, opts = {}) {
       version: 8,
       sources: {
         cells: { type: 'vector', url: 'pmtiles://' + TILES },
+        // 建物の輪郭。どちらも stars にあるベクタタイルをそのまま読む。
+        // bvmap の BldA は z14–16、Overture の building は z14 まで（以降は overzoom）。
+        bvmapsrc: {
+          // minzoom も 16。z14/z15 のタイルは BldA が間引かれているので使わせない。
+          type: 'vector', tiles: ['https://stars.optgeo.org/bvmap/{z}/{x}/{y}'],
+          minzoom: 16, maxzoom: 16,
+          attribution: '<a href="https://www.gsi.go.jp/">国土地理院</a> 最適化ベクトルタイル(bvmap)'
+        },
+        overturesrc: {
+          type: 'vector', tiles: ['https://stars.optgeo.org/overture_buildings/{z}/{x}/{y}'],
+          minzoom: 4, maxzoom: 14,
+          attribution: '<a href="https://overturemaps.org/">Overture Maps</a> / <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        },
         aerial: {
           type: 'raster',
           tiles: ['https://stars.optgeo.org/kitaphoto17/{z}/{x}/{y}'],
@@ -136,7 +157,7 @@ export function createPanel(container, opts = {}) {
         { id: 'aerial', type: 'raster', source: 'aerial', paint: { 'raster-opacity': 0.18 } }
       ]
     },
-    center: [142.6, 43.4], zoom: 6.2, maxZoom: 17,
+    center: [142.6, 43.4], zoom: 6.2, maxZoom: 19,
     hash: opts.hash === false ? false : 'map'
   });
   map.on('error', (e) => fail(`MapLibre エラー${e && e.sourceId ? `（${e.sourceId}）` : ''}`, (e && e.error) || e));
@@ -170,6 +191,17 @@ export function createPanel(container, opts = {}) {
         `<span>${m.stops[0]}${m.unit}</span><span>${m.stops[m.stops.length - 1]}${m.unit}〜</span>`));
     }
     legend.appendChild(el('div', 'dvt-sw', `<i style="background:#383835"></i>建物ゼロ / 算出できず`));
+    if (showOutlines.checked) {
+      legend.appendChild(el('div', 'dvt-sw',
+        `<i style="background:transparent;border-bottom:2px solid ${FOOTPRINT.bvmap.color};border-radius:0"></i>`
+        + `${FOOTPRINT.bvmap.name}`));
+      legend.appendChild(el('div', 'dvt-sw',
+        `<i style="background:repeating-linear-gradient(90deg,${FOOTPRINT.overture.color} 0 4px,transparent 4px 7px);`
+        + `height:2px;border-radius:0"></i>${FOOTPRINT.overture.name}`));
+      legend.appendChild(el('div', 'dvt-hint',
+        'bvmap は z16 タイルでしか全部の建物を持たないため、輪郭はそこまで寄ると出ます。'
+        + '間引かれたものを並べて見せないためです。'));
+    }
   }
 
   function apply() {
@@ -212,6 +244,26 @@ export function createPanel(container, opts = {}) {
                      paint: { 'fill-color': '#383835', 'fill-opacity': CELL_OPACITY } });
       map.addLayer({ id: 'cells-line', type: 'line', source: 'cells', 'source-layer': SRC_LAYER,
                      paint: { 'line-color': '#1a1a19', 'line-width': 0.4, 'line-opacity': 0.35 }, minzoom: 9 });
+      // 建物の輪郭。塗りなしの線だけ——写真の上に重ねて、実物と突き合わせるため。
+      map.addLayer({
+        id: 'bv-outline', type: 'line', source: 'bvmapsrc', 'source-layer': 'BldA',
+        minzoom: FOOTPRINT.minzoom,
+        paint: {
+          'line-color': FOOTPRINT.bvmap.color,
+          'line-width': ['interpolate', ['linear'], ['zoom'], 14, 0.8, 17, 1.8],
+          'line-opacity': 0.95
+        }
+      });
+      map.addLayer({
+        id: 'ov-outline', type: 'line', source: 'overturesrc', 'source-layer': 'building',
+        minzoom: FOOTPRINT.minzoom,
+        paint: {
+          'line-color': FOOTPRINT.overture.color,
+          'line-width': ['interpolate', ['linear'], ['zoom'], 14, 1.0, 17, 2.0],
+          'line-dasharray': FOOTPRINT.overture.dash,
+          'line-opacity': 0.95
+        }
+      });
     });
     guard('指標の適用', apply);
     guard('下図の初期化', () => map.setPaintProperty('aerial', 'raster-opacity', photoOpacity(basemap.value)));
@@ -263,6 +315,13 @@ export function createPanel(container, opts = {}) {
 
   sel.onchange = () => guard('指標の適用', apply);
   showEmpty.onchange = () => guard('指標の適用', apply);
+  showOutlines.onchange = () => guard('建物輪郭の切り替え', () => {
+    const v = showOutlines.checked ? 'visible' : 'none';
+    for (const id of ['bv-outline', 'ov-outline']) {
+      if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', v);
+    }
+    apply();
+  });
   basemap.onchange = () => guard('下図の切り替え', () =>
     map.setPaintProperty('aerial', 'raster-opacity', photoOpacity(basemap.value)));
 

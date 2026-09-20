@@ -115,12 +115,13 @@ t('面は全ズームで透過し、写真も常に見えている', () => {
   const cell = compile(CELL_OPACITY, NUM, 'fill-opacity');
   const photo = compile(PHOTO_OPACITY, NUM, 'raster-opacity');
   const c = (z) => cell.evaluate({ zoom: z }), p = (z) => photo.evaluate({ zoom: z });
-  for (let z = 3; z <= 17; z++) {
-    assert.ok(c(z) >= 0.28 && c(z) <= 0.80, `z${z} のセル不透明度 ${c(z).toFixed(2)} が範囲外`);
+  for (let z = 3; z <= 19; z++) {
+    const lo = z >= 16 ? 0.15 : 0.35;   // 寄ったら輪郭に主役を譲る
+    assert.ok(c(z) >= lo && c(z) <= 0.80, `z${z} のセル不透明度 ${c(z).toFixed(2)} が範囲外`);
     assert.ok(p(z) >= 0.50, `z${z} の写真不透明度 ${p(z).toFixed(2)} では下図が見えない`);
     assert.ok(c(z) < 0.85, `z${z} でセルが不透明すぎる（写真が透けない）`);
   }
-  for (let z = 3; z <= 16; z++) {
+  for (let z = 3; z <= 18; z++) {
     assert.ok(c(z) >= c(z + 1) - 1e-9 && p(z) <= p(z + 1) + 1e-9, `z${z} で単調でない`);
   }
   console.log(`      z6: セル ${c(6).toFixed(2)} / 写真 ${p(6).toFixed(2)}　`

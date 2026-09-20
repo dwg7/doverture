@@ -57,6 +57,28 @@ export const METRICS = [
 /** 建物が1件も無いセルを隠すフィルタ。タイルに empty 属性は無いので式で判定する。 */
 export const NONEMPTY = ['any', ['>', n('bv'), 0], ['>', n('ov'), 0]];
 
+/*
+ * 建物の輪郭（z14以上）。セルの集計では見えない「実際に何が建っていることに
+ * なっているか」を、空中写真の上に直接重ねる。D11/D12 の検証ループを、
+ * 抽出目視ではなく地図上で回せるようにするためのもの。
+ *
+ * 配色：CVD 分離は ΔE 18.3(deutan) / 35.6(normal) で余裕がある。明度帯からは
+ * 意図的に外した——この線が乗るのは平坦な図面の面ではなく空中写真で、
+ * 任意の明るさの背景から抜けるには帯の上側が要る。
+ * 色だけに頼らないよう、Overture は破線にしてある（二重符号化）。
+ */
+export const FOOTPRINT = {
+  // **z16 未満で出してはいけない。**
+  // bvmap の BldA は z16 以外では間引かれている（同じ地面で z14 は z16 の 4.5%、
+  // z15 は 17%。D2）。輪郭を z14 から出すと、間引かれた bvmap と完全な Overture を
+  // 並べることになり、**このプロジェクトが一日かけて避けた誤った比較を画面上で
+  // 再現する**。ソース側も minzoom:16/maxzoom:16 に絞り、MapLibre が z16 タイルしか
+  // 使えないようにしてある。
+  minzoom: 16,
+  bvmap:    { color: '#3ee0e0', name: 'bvmap（国土地理院）の建物' },
+  overture: { color: '#ff5a5a', name: 'Overture の建物', dash: [2, 1.6] }
+};
+
 /** bbox [w,s,e,n] -> fitBounds に渡す [[w,s],[e,n]]。 */
 export const boundsOf = (b) => [[b[0], b[1]], [b[2], b[3]]];
 
@@ -107,7 +129,7 @@ export function zoomHint(zoom) {
  */
 export const CELL_OPACITY = [
   'interpolate', ['linear'], ['zoom'],
-  2, 0.70, 10, 0.66, 12, 0.58, 14, 0.42, 17, 0.30
+  2, 0.70, 10, 0.66, 12, 0.58, 14, 0.42, 16, 0.30, 18, 0.18
 ];
 export const PHOTO_OPACITY = [
   'interpolate', ['linear'], ['zoom'],
