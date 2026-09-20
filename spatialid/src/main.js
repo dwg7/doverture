@@ -81,6 +81,18 @@ const map = new maplibregl.Map({
   hash: true
 });
 map.addControl(new maplibregl.NavigationControl({ visualizePitch: false }), 'top-right');
+const badge = document.createElement('div');
+badge.id = 'zoomBadge';
+document.body.appendChild(badge);
+/** セル1辺が画面上で何pxになるかを出す。使い方の表と同じ目盛りを、実際の値で見せる。 */
+function updateBadge() {
+  const z = map.getZoom();
+  const px = 256 * Math.pow(2, z - Z);   // z14セル1辺のピクセル数
+  const what = px < 2 ? '全道の模様' : px < 24 ? '模様を読む' : px < 200 ? 'セルを押して内訳' : '写真で実物を確認';
+  badge.textContent = `z${z.toFixed(1)}　1セル ${px < 1 ? px.toFixed(1) : Math.round(px)}px　${what}`;
+}
+map.on('move', updateBadge);
+map.on('load', updateBadge);
 map.addControl(new maplibregl.ScaleControl({ maxWidth: 120, unit: 'metric' }), 'bottom-right');
 
 const $ = (id) => document.getElementById(id);
@@ -88,6 +100,7 @@ const sel = $('metric'), status = $('status'), legend = $('legend'), readout = $
 for (const m of METRICS) sel.add(new Option(m.name, m.key));
 
 let data = null;
+let geo = null;   // toGeoJSON の結果。MapLibre の非公開APIを覗かずに済ませるため保持する
 
 function toGeoJSON(doc) {
   const i = Object.fromEntries(doc.cols.map((c, k) => [c, k]));
@@ -169,7 +182,8 @@ function show(p) {
       <tr><td>Overture ÷ bvmap</td><td>${p.bv > 0 ? (p.ov / p.bv).toFixed(2) : '—'}</td></tr>
       <tr><td>建物面積 bvmap / Overture</td><td>${Math.round(p.bvArea / 1000).toLocaleString()} / ${Math.round(p.ovArea / 1000).toLocaleString()} 千m²</td></tr>
     </table>
-    <a href="#" id="zoomHere">この区画を拡大して写真で見る</a>`;
+    <a href="#" id="zoomHere">この区画を拡大して写真で見る</a>
+    <p class="hint">拡大すると下図の空中写真で、実際に建物があるか確かめられます。</p>`;
   document.getElementById('zoomHere').onclick = (ev) => {
     ev.preventDefault();
     map.fitBounds([[x2lon(p.x), y2lat(p.y + 1)], [x2lon(p.x + 1), y2lat(p.y)]], { padding: 80, duration: 800 });
@@ -185,7 +199,8 @@ map.on('load', async () => {
     status.textContent = `データを読めませんでした（${err.message}）`;
     return;
   }
-  map.addSource('cells', { type: 'geojson', data: toGeoJSON(data) });
+  geo = toGeoJSON(data);
+  map.addSource('cells', { type: 'geojson', data: geo });
   map.addLayer({
     id: 'cells', type: 'fill', source: 'cells',
     paint: { 'fill-color': '#383835', 'fill-opacity': 0.72 }
@@ -199,9 +214,37 @@ map.on('load', async () => {
   const done = data.rows.length;
   status.textContent = `${done.toLocaleString()} セル・基準 ${data.asOf.slice(0, 10)}`;
 
+  // 通るだけで出す。クリックを要求すると「どこを押せばいいか」が分からない。
+  let last = null;
+  map.on('mousemove', 'cells', (e) => {
+    const p = e.features[0].properties;
+    const id = p.x + '/' + p.y;
+    if (id !== last) { last = id; show(p); }
+    map.getCanvas().style.cursor = 'pointer';
+  });
+  map.on('mouseleave', 'cells', () => { map.getCanvas().style.cursor = ''; });
   map.on('click', 'cells', (e) => show(e.features[0].properties));
-  map.on('mouseenter', 'cells', () => (map.getCanvas().style.cursor = 'pointer'));
-  map.on('mouseleave', 'cells', () => (map.getCanvas().style.cursor = ''));
+
+  // 市区町村ジャンプ。セルの外接矩形へ飛ぶ。
+  const jump = $('jump');
+  const extent = new Map();
+  for (const f of geo.features) {
+    const p = f.properties;
+    const b = extent.get(p.code) || [Infinity, Infinity, -Infinity, -Infinity];
+    b[0] = Math.min(b[0], p.x); b[1] = Math.min(b[1], p.y);
+    b[2] = Math.max(b[2], p.x); b[3] = Math.max(b[3], p.y);
+    extent.set(p.code, b);
+  }
+  [...extent.keys()]
+    .map((c) => [c, (data.names && data.names[c]) || c])
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .forEach(([c, n]) => jump.add(new Option(`${n}（${c}）`, c)));
+  jump.onchange = () => {
+    const b = extent.get(jump.value);
+    if (!b) return;
+    map.fitBounds([[x2lon(b[0]), y2lat(b[3] + 1)], [x2lon(b[2] + 1), y2lat(b[1])]],
+                  { padding: 60, duration: 900 });
+  };
 });
 
 sel.onchange = apply;

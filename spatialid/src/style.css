@@ -45,3 +45,19 @@ select {
 #readout td + td { text-align: right; color: var(--ink); font-variant-numeric: tabular-nums; }
 #readout a { color: #86b6ef; font-size: 11px; display: inline-block; margin-top: 8px; }
 .maplibregl-ctrl-attrib { font-size: 10px; }
+
+#howto { margin: 2px 0 4px; border: 1px solid var(--hairline); border-radius: 6px; padding: 7px 9px; }
+#howto summary { font-size: 11px; color: var(--ink-2); cursor: pointer; }
+#howto table { width: 100%; border-collapse: collapse; margin: 7px 0 0; font-size: 10.5px; }
+#howto th { text-align: left; font-weight: 600; color: var(--muted); padding-bottom: 3px; }
+#howto td { color: var(--ink-2); padding: 1px 6px 1px 0; vertical-align: top; }
+#howto p { margin: 7px 0 0; font-size: 10.5px; color: var(--muted); }
+#howto b { color: var(--ink-2); font-weight: 600; }
+#zoomBadge {
+  position: absolute; z-index: 2; top: 12px; right: 58px;
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
+  border: 1px solid var(--hairline); border-radius: 6px;
+  padding: 5px 9px; font-size: 11px; color: var(--ink-2);
+  backdrop-filter: blur(8px); pointer-events: none;
+}
+#readout .hint { margin: 6px 0 0; font-size: 10.5px; color: var(--muted); }
