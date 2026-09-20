@@ -10,6 +10,8 @@
     "test": "node test/data.test.mjs && node test/expr.test.mjs && node test/build.test.mjs"
   },
   "devDependencies": {
+    "@mapbox/vector-tile": "^3.0.0",
+    "pbf": "^5.1.2",
     "vite": "^6.4.3"
   },
   "dependencies": {

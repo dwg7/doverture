@@ -14,7 +14,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 // ?url で Vite にワーカーを資産として出させ、その場所を明示的に教える。
 import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url';
 import { Protocol } from 'pmtiles';
-import { Z, x2lon, y2lat, DIVERGING, SEQ, METRICS, boundsOf, fillExpr, zoomHint,
+import { Z, x2lon, y2lat, DIVERGING, SEQ, METRICS, NONEMPTY, boundsOf, fillExpr, zoomHint,
          CELL_OPACITY, photoOpacity } from './data.js';
 
 // セルは PMTiles のベクタタイルで配る。27,947 地物を毎回ブラウザへ投げて
@@ -195,7 +195,7 @@ function drawLegend(m) {
 function apply() {
   const m = METRICS.find((x) => x.key === sel.value) || METRICS[0];
   map.setPaintProperty('cells', 'fill-color', fillExpr(m));
-  const f = $('showEmpty').checked ? null : ['==', ['get', 'empty'], 0];
+  const f = $('showEmpty').checked ? null : NONEMPTY;
   map.setFilter('cells', f);
   map.setFilter('cells-line', f);
   drawLegend(m);

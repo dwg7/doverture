@@ -1,77 +1,112 @@
 /*
- * 塗りの式を MapLibre 本体のコンパイラで検証し、実際に評価する。
- * ブラウザは要らない。式の形の誤り・閾値の取り違えはここで止まる。
+ * 塗りの式を MapLibre 本体のコンパイラで検証し、**実際に配るタイルの地物**で評価する。
+ *
+ * 教訓：以前このテストは `{ratio: 1.2}` のような合成した属性で通っていた。
+ * ところが PMTiles に切り替えたとき ratio/empty はタイルに存在せず、
+ * フィルタが全地物を除外して何も描かれなかった。テストは緑のままだった。
+ * **式は、実データの属性で評価しないと検証したことにならない。**
  */
 import assert from 'node:assert/strict';
-import { createPropertyExpression, latest } from '@maplibre/maplibre-gl-style-spec';
-import { METRICS, DIVERGING, fillExpr, CELL_OPACITY, PHOTO_OPACITY } from '../src/data.js';
+import fs from 'node:fs';
+import { createPropertyExpression, latest, featureFilter } from '@maplibre/maplibre-gl-style-spec';
+import { PMTiles } from 'pmtiles';
+import { VectorTile } from '@mapbox/vector-tile';
+import { PbfReader } from 'pbf';
+import { METRICS, DIVERGING, NONEMPTY, NODATA, fillExpr, CELL_OPACITY, PHOTO_OPACITY }
+  from '../src/data.js';
 
-// MapLibre 本体が持っている仕様定義をそのまま使う（自前で書くと嘘の検査になる）
 const COLOR = latest['paint_fill']['fill-color'];
 const NUM = latest['paint_fill']['fill-opacity'];
-
 let n = 0;
 const t = (name, fn) => { fn(); n++; console.log('  ok  ' + name); };
+const ta = async (name, fn) => { await fn(); n++; console.log('  ok  ' + name); };
+
 function compile(expr, spec, key = 'fill-color') {
   const r = createPropertyExpression(expr, key, spec);
-  if (r.result !== 'success') {
-    throw new Error('式がコンパイルできない: ' + r.value.map((e) => e.message).join('; '));
-  }
+  if (r.result !== 'success') throw new Error('コンパイル不可: ' + r.value.map((e) => e.message).join('; '));
   return r.value;
 }
-const rgba = (c) => '#' + [c.r, c.g, c.b].map((v) => Math.round(v * 255).toString(16).padStart(2, '0')).join('');
+const hex = (c) => '#' + [c.r, c.g, c.b].map((v) => Math.round(v * 255).toString(16).padStart(2, '0')).join('');
 
-t('全指標の fill-color が MapLibre の式としてコンパイルできる', () => {
-  for (const m of METRICS) compile(fillExpr(m), COLOR);
-});
+/* ---- 実タイルから地物の属性を取り出す ---- */
+class FileSource {
+  constructor(p) { this.p = p; this.fd = fs.openSync(p, 'r'); }
+  getKey() { return this.p; }
+  async getBytes(o, l) {
+    const b = Buffer.alloc(l); fs.readSync(this.fd, b, 0, l, o);
+    return { data: b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) };
+  }
+}
+const pm = new PMTiles(new FileSource(
+  new URL('../../docs/data/doverture-cells.pmtiles', import.meta.url).pathname));
 
-t('発散尺度が階級どおりの色を返す', () => {
-  const ex = compile(fillExpr(METRICS[0]), COLOR);
-  const at = (ratio) => rgba(ex.evaluate({ zoom: 10 }, { properties: { ratio } }));
-  const cases = [[0.50, 0], [0.69, 0], [0.70, 1], [0.84, 1], [0.85, 2], [0.94, 2],
-                 [0.95, 3], [1.04, 3], [1.05, 4], [1.29, 4], [1.30, 5], [1.79, 5],
-                 [1.80, 6], [9.9, 6]];
-  for (const [r, level] of cases) {
-    assert.equal(at(r), DIVERGING[level][1].toLowerCase(),
-                 `比 ${r} は L${level}（${DIVERGING[level][2]}）のはず`);
+async function featuresAt(z, x, y) {
+  const t2 = await pm.getZxy(z, x, y);
+  assert.ok(t2 && t2.data, `z${z}/${x}/${y} のタイルが無い`);
+  const layer = new VectorTile(new PbfReader(new Uint8Array(t2.data))).layers.cells;
+  assert.ok(layer, 'cells レイヤーが無い');
+  return Array.from({ length: layer.length }, (_, i) => ({ properties: layer.feature(i).properties }));
+}
+
+const tileOf = (lon, lat, z) => {
+  const r = (lat * Math.PI) / 180;
+  return [z, Math.floor(((lon + 180) / 360) * (1 << z)),
+          Math.floor(((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2) * (1 << z))];
+};
+
+const sapporo = await featuresAt(...tileOf(141.35, 43.06, 12));
+const whole = await featuresAt(...tileOf(143.0, 43.5, 4));
+
+await ta('タイルの地物に必要な属性が揃っている', async () => {
+  assert.ok(sapporo.length > 0, '札幌の z12 タイルが空');
+  for (const k of ['bv', 'ov', 'osm', 'eab', 'oth', 'code', 'lv']) {
+    assert.ok(k in sapporo[0].properties, `属性 ${k} が無い（${Object.keys(sapporo[0].properties)}）`);
   }
 });
 
-t('算出できないセル(-1)は無データ色になる', () => {
+t('全指標の fill-color がコンパイルでき、実タイルの地物で色になる', () => {
   for (const m of METRICS) {
     const ex = compile(fillExpr(m), COLOR);
-    const f = { properties: { ratio: -1, bv: -1, ov: -1, oth: -1, othShare: -1, osmShare: -1 } };
-    assert.equal(rgba(ex.evaluate({ zoom: 10 }, f)), '#383835', `${m.key} の無データ色`);
+    const colors = sapporo.map((f) => hex(ex.evaluate({ zoom: 12 }, f)));
+    const real = colors.filter((c) => c !== NODATA.toLowerCase());
+    assert.ok(real.length > 0,
+      `${m.key}: 札幌の ${sapporo.length} 地物すべてが無データ色になった（属性名の食い違いを疑う）`);
   }
 });
 
-t('逐次指標が段階どおりに明るくなる', () => {
-  for (const m of METRICS.filter((x) => x.kind === 'seq')) {
-    const ex = compile(fillExpr(m), COLOR);
-    const lum = (v) => {
-      const c = ex.evaluate({ zoom: 10 }, { properties: { [m.prop]: v } });
-      return c.r + c.g + c.b;
-    };
-    const lo = lum(m.stops[0]), hi = lum(m.stops[m.stops.length - 1] * 10);
-    assert.ok(hi > lo, `${m.key}: 大きい値ほど明るくなるべき（${lo} -> ${hi}）`);
+t('発散尺度が実タイルの比率どおりの階級を返す', () => {
+  const ex = compile(fillExpr(METRICS[0]), COLOR);
+  let checked = 0;
+  for (const f of sapporo) {
+    const bv = +f.properties.bv, ov = +f.properties.ov;
+    if (!(bv > 0)) continue;
+    const r = ov / bv;
+    const want = DIVERGING.find((d) => r < d[0])[1].toLowerCase();
+    assert.equal(hex(ex.evaluate({ zoom: 12 }, f)), want, `比 ${r.toFixed(3)} の階級`);
+    checked++;
+  }
+  assert.ok(checked > 10, `検証できた地物が ${checked} 件しかない`);
+});
+
+t('建物ゼロを隠すフィルタが、実タイルで全部を消さない', () => {
+  const pass = featureFilter(NONEMPTY, 'layers[0].filter');
+  for (const [name, feats] of [['札幌 z12', sapporo], ['全道 z4', whole]]) {
+    const kept = feats.filter((f) => pass.filter({ zoom: 12 }, f));
+    assert.ok(kept.length > 0, `${name}: フィルタが ${feats.length} 地物を全部消した`);
+    assert.ok(kept.length <= feats.length);
+    console.log(`      ${name}: ${kept.length}/${feats.length} 件が残る`);
   }
 });
 
 t('不透明度がズームで主役を入れ替える', () => {
   const cell = compile(CELL_OPACITY, NUM, 'fill-opacity');
   const photo = compile(PHOTO_OPACITY, NUM, 'raster-opacity');
-  const c = (z) => cell.evaluate({ zoom: z });
-  const p = (z) => photo.evaluate({ zoom: z });
-  assert.ok(c(6) > 0.9,  `引いたときセルは濃い（${c(6)}）`);
-  assert.ok(p(6) < 0.3,  `引いたとき写真は薄い（${p(6)}）`);
-  assert.ok(c(16) < 0.4, `寄ったときセルは薄い（${c(16)}）`);
-  assert.ok(p(16) > 0.9, `寄ったとき写真は濃い（${p(16)}）`);
+  const c = (z) => cell.evaluate({ zoom: z }), p = (z) => photo.evaluate({ zoom: z });
+  assert.ok(c(6) > 0.9 && p(6) < 0.3 && c(16) < 0.4 && p(16) > 0.9);
+  assert.ok(c(6) - p(6) > 0.5, `z6 でセルが写真に埋もれている`);
   for (let z = 3; z <= 16; z++) {
-    assert.ok(c(z) >= c(z + 1) - 1e-9, `セルはz${z}で単調でない`);
-    assert.ok(p(z) <= p(z + 1) + 1e-9, `写真はz${z}で単調でない`);
+    assert.ok(c(z) >= c(z + 1) - 1e-9 && p(z) <= p(z + 1) + 1e-9, `z${z} で単調でない`);
   }
-  // 引いたときにセルが写真に埋もれないこと（今回の「写真しか見えない」の再発防止）
-  assert.ok(c(6) - p(6) > 0.5, `z6 でセルが写真に埋もれている（セル ${c(6)} / 写真 ${p(6)}）`);
 });
 
-console.log(`\n${n} 件すべて通過（MapLibre の式コンパイラで検証）`);
+console.log(`\n${n} 件すべて通過（実タイルの地物で評価）`);
