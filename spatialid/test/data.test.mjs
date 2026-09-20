@@ -1,8 +1,8 @@
 /* ブラウザ無しで走る検証。実データ(docs/data/cells.json)に対して形と値を確かめる。 */
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { toGeoJSON, extents, boundsOf, fillExpr, zoomHint, METRICS, DIVERGING, x2lon, y2lat }
-  from '../src/data.js';
+import { toGeoJSON, extents, boundsOf, fillExpr, zoomHint, METRICS, DIVERGING, x2lon, y2lat,
+         CELL_OPACITY, PHOTO_OPACITY, photoOpacity } from '../src/data.js';
 
 const doc = JSON.parse(fs.readFileSync(new URL('../../docs/data/cells.json', import.meta.url), 'utf8'));
 let n = 0;
@@ -79,6 +79,31 @@ t('zoomHint がズームに応じて変わる', () => {
 t('タイル座標の往復が合う', () => {
   assert.ok(Math.abs(x2lon(0) + 180) < 1e-9);
   assert.ok(Math.abs(y2lat(0) - 85.0511) < 0.01);
+});
+
+t('セルと写真の不透明度が、引くと入れ替わる', () => {
+  const at = (expr, z) => {                       // interpolate 式を手で評価する
+    const st = expr.slice(3);
+    for (let i = 0; i + 3 < st.length; i += 2) {
+      if (z >= st[i] && z <= st[i + 2]) {
+        const f = (z - st[i]) / (st[i + 2] - st[i]);
+        return st[i + 1] + f * (st[i + 3] - st[i + 1]);
+      }
+    }
+    return z < st[0] ? st[1] : st[st.length - 1];
+  };
+  assert.ok(at(CELL_OPACITY, 6) > 0.9, '引いたときセルは濃い');
+  assert.ok(at(PHOTO_OPACITY, 6) < 0.3, '引いたとき写真は薄い');
+  assert.ok(at(CELL_OPACITY, 16) < 0.4, '寄ったときセルは薄い');
+  assert.ok(at(PHOTO_OPACITY, 16) > 0.9, '寄ったとき写真は濃い');
+  assert.ok(at(CELL_OPACITY, 6) > at(CELL_OPACITY, 16), 'セルは単調に薄くなる');
+  assert.ok(at(PHOTO_OPACITY, 6) < at(PHOTO_OPACITY, 16), '写真は単調に濃くなる');
+});
+
+t('photoOpacity のモードが効く', () => {
+  assert.equal(photoOpacity('none'), 0);
+  assert.equal(photoOpacity('photo'), 0.95);
+  assert.equal(photoOpacity('auto'), PHOTO_OPACITY);
 });
 
 console.log(`\n${n} 件すべて通過（セル ${doc.rows.length.toLocaleString()} 件で検証）`);

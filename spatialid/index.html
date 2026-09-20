@@ -22,7 +22,9 @@
           <tr><td>z14–17</td><td>画面いっぱい</td><td>写真で実物を確認</td></tr>
         </table>
         <p>セルは z14 の空間ID（約1.8km四方）。<b>セルの上を通るだけで左下に数字</b>が出ます。
-        建物ゼロのセルは既定で隠しています（全体の約半分）。</p>
+        建物ゼロのセルは既定で隠しています（全体の約半分）。<br>
+        下図の写真は<b>引くと薄く、寄ると濃く</b>なります——引いているときはセルの色が主役、
+        寄ったときは実物の確認が主役だからです。</p>
       </details>
 
       <label for="jump">市区町村へ移動</label>
@@ -35,8 +37,9 @@
 
       <label for="basemap">下図</label>
       <select id="basemap">
-        <option value="aerial">空中写真（国土地理院）</option>
-        <option value="none">なし（暗い背景）</option>
+        <option value="auto">自動（引くとデータ／寄ると写真）</option>
+        <option value="photo">写真を常に濃く</option>
+        <option value="none">写真なし</option>
       </select>
 
       <label class="row"><input type="checkbox" id="showEmpty" /> 建物ゼロのセルも塗る</label>

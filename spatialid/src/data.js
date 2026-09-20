@@ -105,3 +105,26 @@ export function zoomHint(zoom) {
   const what = px < 2 ? '全道の模様' : px < 24 ? '模様を読む' : px < 200 ? 'セルを押して内訳' : '写真で実物を確認';
   return { px, what };
 }
+
+/*
+ * ズームで主役を入れ替える。
+ *
+ * 引いているとき（模様を読む）はセルを濃く・写真を薄く、
+ * 寄ったとき（実物を確かめる）はセルを薄く・写真を濃く。
+ * z6 ではセル1辺が約1pxしかないので、ここで薄くすると写真しか見えなくなる。
+ */
+export const CELL_OPACITY = [
+  'interpolate', ['linear'], ['zoom'],
+  2, 0.96, 10, 0.94, 12, 0.82, 14, 0.5, 16, 0.28
+];
+export const PHOTO_OPACITY = [
+  'interpolate', ['linear'], ['zoom'],
+  2, 0.18, 8, 0.22, 11, 0.45, 13, 0.75, 15, 0.95
+];
+
+/** 下図の見せ方。auto はズーム連動、photo は常に濃く、none は消す。 */
+export function photoOpacity(mode) {
+  if (mode === 'photo') return 0.95;
+  if (mode === 'none') return 0;
+  return PHOTO_OPACITY;
+}

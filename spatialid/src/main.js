@@ -7,8 +7,8 @@
  */
 import * as maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { Z, x2lon, y2lat, DIVERGING, SEQ, METRICS, toGeoJSON, extents, boundsOf, fillExpr, zoomHint }
-  from './data.js';
+import { Z, x2lon, y2lat, DIVERGING, SEQ, METRICS, toGeoJSON, extents, boundsOf, fillExpr, zoomHint,
+         CELL_OPACITY, photoOpacity } from './data.js';
 
 const DATA = '../data/cells.json';
 const ATTR =
@@ -51,7 +51,7 @@ const map = new maplibregl.Map({
     },
     layers: [
       { id: 'bg', type: 'background', paint: { 'background-color': '#1a1a19' } },
-      { id: 'aerial', type: 'raster', source: 'aerial', paint: { 'raster-opacity': 0.85 } }
+      { id: 'aerial', type: 'raster', source: 'aerial', paint: { 'raster-opacity': 0.18 } }
     ]
   },
   center: [142.6, 43.4],
@@ -161,14 +161,16 @@ map.on('load', async () => {
   map.addSource('cells', { type: 'geojson', data: geo });
   map.addLayer({
     id: 'cells', type: 'fill', source: 'cells',
-    paint: { 'fill-color': '#383835', 'fill-opacity': 0.72 }
+    paint: { 'fill-color': '#383835', 'fill-opacity': CELL_OPACITY }
   });
   map.addLayer({
     id: 'cells-line', type: 'line', source: 'cells',
-    paint: { 'line-color': '#1a1a19', 'line-width': 0.4, 'line-opacity': 0.5 },
+    paint: { 'line-color': '#1a1a19', 'line-width': 0.4, 'line-opacity': 0.35 },
     minzoom: 9
   });
   guard('指標の適用', apply);
+  guard('下図の初期化', () =>
+    map.setPaintProperty('aerial', 'raster-opacity', photoOpacity($('basemap').value)));
   $('status').textContent = `${data.rows.length.toLocaleString()} セル・基準 ${String(data.asOf).slice(0, 10)}`;
 
   // 通るだけで出す。クリックを要求すると「どこを押せばいいか」が分からない。
@@ -199,4 +201,5 @@ map.on('load', async () => {
 sel.onchange = () => guard('指標の適用', apply);
 $('showEmpty').onchange = () => guard('指標の適用', apply);
 $('basemap').onchange = (e) =>
-  map.setPaintProperty('aerial', 'raster-opacity', e.target.value === 'aerial' ? 0.85 : 0);
+  guard('下図の切り替え', () =>
+    map.setPaintProperty('aerial', 'raster-opacity', photoOpacity(e.target.value)));
