@@ -1,0 +1,157 @@
+/*
+ * data.js — MapLibre に依存しない純粋なロジック。
+ *
+ * 分離してある理由：このセッションにはブラウザが無く、描画は目視できない。
+ * ブラウザ無しで検証できるのは「データの形」に関するバグだけなので、
+ * そこだけを MapLibre から切り離して node でテストできるようにしてある。
+ * （実際、MapLibre の GeoJSONSource._data を覗いていたバグはこの分離が無くて出た）
+ */
+
+export const Z = 14;
+const N = 2 ** Z;
+
+export const x2lon = (x) => (x / N) * 360 - 180;
+export const y2lat = (y) => {
+  const n = Math.PI - (2 * Math.PI * y) / N;
+  return (180 / Math.PI) * Math.atan(0.5 * (Math.exp(n) - Math.exp(-n)));
+};
+
+/** 発散尺度（DECISIONS.md D10 と同一）。境界値・色・ラベル。 */
+export const DIVERGING = [
+  [0.70, '#9ec5f4', 'bvmap が大きく多い（〜0.70）'],
+  [0.85, '#5598e7', 'bvmap が多い（0.70〜0.85）'],
+  [0.95, '#256abf', 'bvmap がやや多い（0.85〜0.95）'],
+  [1.05, '#6e6d67', 'ほぼ互角（0.95〜1.05）'],
+  [1.30, '#a83232', 'Overture がやや多い（1.05〜1.30）'],
+  [1.80, '#d95f5f', 'Overture が多い（1.30〜1.80）'],
+  [Infinity, '#f2a3a3', 'Overture が大きく多い（1.80〜）']
+];
+
+/** 逐次ランプ（青・単色）。暗い面では明るいほど大きい。 */
+export const SEQ = ['#184f95', '#256abf', '#3987e5', '#6da7ec', '#9ec5f4', '#cde2fb'];
+
+/*
+ * 指標。値はタイルに入っている生の属性（bv/ov/osm/eab/oth）から**式で**導く。
+ * タイル側に派生値を持たせないのは、比率の定義を変えるたびにタイルを焼き直したく
+ * ないから。value は MapLibre 式、valid は「値が計算できるか」の式。
+ */
+const n = (k) => ['to-number', ['get', k], 0];
+const RATIO = ['/', n('ov'), n('bv')];
+const SHARE = (k) => ['*', ['/', n(k), n('ov')], 100];
+
+export const METRICS = [
+  { key: 'ratio', name: 'どちらが多く捉えているか（Overture ÷ bvmap）',
+    kind: 'diverging', value: RATIO, valid: ['>', n('bv'), 0] },
+  { key: 'bv', name: 'bvmap 建物数（国土地理院）', kind: 'seq',
+    value: n('bv'), valid: true, stops: [1, 5, 20, 80, 300, 1200], unit: '件' },
+  { key: 'ov', name: 'Overture 建物数', kind: 'seq',
+    value: n('ov'), valid: true, stops: [1, 5, 20, 80, 300, 1200], unit: '件' },
+  { key: 'oth', name: 'Microsoft ほか（OSM・東アジア学術以外）', kind: 'seq',
+    value: n('oth'), valid: true, stops: [1, 3, 10, 30, 100, 400], unit: '件' },
+  { key: 'othShare', name: 'Overture に占める Microsoft ほかの割合', kind: 'seq',
+    value: SHARE('oth'), valid: ['>', n('ov'), 0], stops: [0, 5, 10, 20, 35, 50], unit: '%' },
+  { key: 'osmShare', name: 'Overture に占める OSM 由来の割合', kind: 'seq',
+    value: SHARE('osm'), valid: ['>', n('ov'), 0], stops: [40, 60, 75, 85, 95, 100], unit: '%' }
+];
+
+/** 建物が1件も無いセルを隠すフィルタ。タイルに empty 属性は無いので式で判定する。 */
+export const NONEMPTY = ['any', ['>', n('bv'), 0], ['>', n('ov'), 0]];
+
+/*
+ * 建物の輪郭（z14以上）。セルの集計では見えない「実際に何が建っていることに
+ * なっているか」を、空中写真の上に直接重ねる。D11/D12 の検証ループを、
+ * 抽出目視ではなく地図上で回せるようにするためのもの。
+ *
+ * 配色：CVD 分離は ΔE 18.3(deutan) / 35.6(normal) で余裕がある。明度帯からは
+ * 意図的に外した——この線が乗るのは平坦な図面の面ではなく空中写真で、
+ * 任意の明るさの背景から抜けるには帯の上側が要る。
+ * 色だけに頼らないよう、Overture は破線にしてある（二重符号化）。
+ */
+/** Overture の `@geometry_source` のうち、OSM を表す値。 */
+export const OSM_SOURCE = 'OpenStreetMap';
+export const IS_OSM = ['==', ['get', '@geometry_source'], OSM_SOURCE];
+export const IS_NOT_OSM = ['!=', ['get', '@geometry_source'], OSM_SOURCE];
+
+export const FOOTPRINT = {
+  // **z16 未満で出してはいけない。**
+  // bvmap の BldA は z16 以外では間引かれている（同じ地面で z14 は z16 の 4.5%、
+  // z15 は 17%。D2）。輪郭を z14 から出すと、間引かれた bvmap と完全な Overture を
+  // 並べることになり、**このプロジェクトが一日かけて避けた誤った比較を画面上で
+  // 再現する**。ソース側も minzoom:16/maxzoom:16 に絞り、MapLibre が z16 タイルしか
+  // 使えないようにしてある。
+  minzoom: 16,
+  /*
+   * 色は「どのデータセットか」、線種は「誰が見たか」を表す。
+   * OSM は人が現地・画像を見て引いた線なので実線、Microsoft と研究データは
+   * 自動検出で**誰も検証していない**ので点線。D12 で共和町の Microsoft 検出が
+   * 16点中15点まで建物でなかったことが、そのまま線種に出る。
+   */
+  bvmap:       { color: '#3ee0e0', name: 'bvmap（国土地理院）', dash: null },
+  overtureOsm: { color: '#ff5a5a', name: 'Overture — OSM 由来（人が引いた）', dash: null },
+  overtureAi:  { color: '#ff5a5a', name: 'Overture — Microsoft・研究データ（未検証）',
+                 dash: [0.6, 1.8], cap: 'round' }
+};
+
+/** bbox [w,s,e,n] -> fitBounds に渡す [[w,s],[e,n]]。 */
+export const boundsOf = (b) => [[b[0], b[1]], [b[2], b[3]]];
+
+/** 塗り色の MapLibre 式。未算出(-1)は無データ色へ落とす。 */
+export const NODATA = '#383835';
+
+export function fillExpr(metric) {
+  let paint;
+  if (metric.kind === 'diverging') {
+    paint = ['step', metric.value, DIVERGING[0][1]];
+    for (let i = 0; i < DIVERGING.length - 1; i++) paint.push(DIVERGING[i][0], DIVERGING[i + 1][1]);
+  } else {
+    paint = ['step', metric.value, SEQ[0]];
+    for (let k = 1; k < SEQ.length; k++) paint.push(metric.stops[k], SEQ[k]);
+  }
+  return metric.valid === true ? paint : ['case', metric.valid, paint, NODATA];
+}
+
+/** ピラミッドの設計。タイル z に対してセルのレベルは z + DETAIL（14 で頭打ち）。 */
+export const DETAIL = 3;
+export const MAXZOOM = 12;
+
+/**
+ * 画面上でセル1辺が何pxになるか、そのズームでどのレベルのセルが出るか。
+ *
+ * ベクタタイルは 512px 扱いなので、表示ズーム d に対してタイルは z = d - 1、
+ * セルのレベルは min(14, z + DETAIL) = min(14, d + 2)。
+ * **d < 12 では常に 64px**（比が一定）で、d >= 12 からは z14 セルで頭打ちになり
+ * 拡大とともに大きくなる。サブピクセルのセルはどこにも出ない。
+ */
+export function zoomHint(zoom) {
+  const level = Math.min(Z, Math.floor(zoom) - 1 + DETAIL);
+  const px = 256 * Math.pow(2, zoom - level);
+  const what = level < Z ? `z${level}セルの模様` : px < 400 ? 'z14セルを押して内訳' : '写真で実物を確認';
+  return { px, level, what };
+}
+
+/*
+ * 面はどのズームでも透過させ、下図の写真を透かす。
+ *
+ * かつては低ズームでセルをほぼ不透明にしていた。z14 セルを全ズームで描いていた頃は
+ * 1辺が約1pxしかなく、薄くすると写真しか見えなかったため（D16）。
+ * **ピラミッドを入れた今、セルは表示ズーム12未満で常に64px**なので、その心配は無い。
+ * 透過させた方が、海岸線・農地・市街地といった土地の文脈がそのまま読める。
+ *
+ * 寄るほど写真を濃く・セルを薄くする向きは残す——引いているときは分布を読み、
+ * 寄ったときは実物を確かめる、という作業の流れに合わせるため。
+ */
+export const CELL_OPACITY = [
+  'interpolate', ['linear'], ['zoom'],
+  2, 0.70, 10, 0.66, 12, 0.58, 14, 0.42, 16, 0.30, 18, 0.18
+];
+export const PHOTO_OPACITY = [
+  'interpolate', ['linear'], ['zoom'],
+  2, 0.55, 8, 0.62, 11, 0.75, 13, 0.88, 15, 0.96
+];
+
+/** 下図の見せ方。auto はズーム連動、photo は常に濃く、none は消す。 */
+export function photoOpacity(mode) {
+  if (mode === 'photo') return 0.95;
+  if (mode === 'none') return 0;
+  return PHOTO_OPACITY;
+}

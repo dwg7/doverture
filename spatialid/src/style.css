@@ -1,0 +1,75 @@
+/*
+ * パネルのスタイル。すべて .dvt-root 配下に閉じてある——Open MCT のような
+ * ホストに埋め込んでも、相手の CSS と衝突しないため。
+ *
+ * 色トークンも :root ではなく .dvt-root に置く。Open MCT の中では親の色トークンが
+ * 透明になることがあるので、面の色と文字の色は自分で持つ（cafebabe の tabularmaps/do 知見）。
+ */
+.dvt-root {
+  --dvt-surface: #1a1a19;
+  --dvt-panel: #232322;
+  --dvt-ink: #ffffff;
+  --dvt-ink-2: #c3c2b7;
+  --dvt-muted: #898781;
+  --dvt-line: #2c2c2a;
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--dvt-surface);
+  color: var(--dvt-ink);
+  font: 13px/1.5 -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", sans-serif;
+}
+.dvt-root *, .dvt-root *::before, .dvt-root *::after { box-sizing: border-box; }
+
+.dvt-map { position: absolute; inset: 0; }
+
+.dvt-panel, .dvt-readout, .dvt-banner, .dvt-badge {
+  position: absolute; z-index: 2;
+  background: color-mix(in srgb, var(--dvt-panel) 92%, transparent);
+  border: 1px solid var(--dvt-line); border-radius: 8px;
+  backdrop-filter: blur(8px);
+}
+.dvt-panel { top: 10px; left: 10px; width: 262px; max-height: calc(100% - 20px); overflow: auto; padding: 11px 13px; }
+.dvt-readout { bottom: 10px; left: 10px; width: 262px; padding: 11px 13px; }
+.dvt-badge { top: 10px; right: 54px; padding: 5px 9px; font-size: 11px; color: var(--dvt-ink-2); border-radius: 6px; pointer-events: none; }
+.dvt-banner {
+  top: 10px; left: 50%; transform: translateX(-50%); z-index: 5;
+  max-width: min(640px, calc(100% - 300px)); padding: 6px 13px; border-radius: 6px;
+  font-size: 12px; color: var(--dvt-ink-2); transition: opacity .5s;
+}
+.dvt-banner.dvt-ok  { border-color: #256abf; color: #9ec5f4; }
+.dvt-banner.dvt-bad { border-color: #a83232; color: #f2a3a3; }
+.dvt-banner.dvt-gone { opacity: 0; pointer-events: none; }
+
+.dvt-title { margin: 0 0 9px; font-size: 14px; font-weight: 600; letter-spacing: .02em; }
+.dvt-title span { display: block; font-size: 11px; font-weight: 400; color: var(--dvt-muted); margin-top: 2px; }
+.dvt-root label { display: block; font-size: 11px; color: var(--dvt-ink-2); margin: 10px 0 4px; }
+.dvt-root label.dvt-row { display: flex; align-items: center; gap: 6px; margin-top: 11px; }
+.dvt-root select {
+  width: 100%; font: inherit; font-size: 12px; padding: 5px 7px;
+  background: var(--dvt-surface); color: var(--dvt-ink);
+  border: 1px solid var(--dvt-line); border-radius: 5px;
+}
+.dvt-howto { margin: 2px 0 4px; border: 1px solid var(--dvt-line); border-radius: 6px; padding: 7px 9px; }
+.dvt-howto summary { font-size: 11px; color: var(--dvt-ink-2); cursor: pointer; }
+.dvt-howto table { width: 100%; border-collapse: collapse; margin: 7px 0 0; font-size: 10.5px; }
+.dvt-howto th { text-align: left; font-weight: 600; color: var(--dvt-muted); padding-bottom: 3px; }
+.dvt-howto td { color: var(--dvt-ink-2); padding: 1px 6px 1px 0; vertical-align: top; }
+.dvt-howto p { margin: 7px 0 0; font-size: 10.5px; color: var(--dvt-muted); }
+.dvt-howto b { color: var(--dvt-ink-2); font-weight: 600; }
+
+.dvt-legend { margin-top: 9px; display: flex; flex-direction: column; gap: 3px; }
+.dvt-sw { display: flex; align-items: center; gap: 7px; font-size: 11px; color: var(--dvt-ink-2); }
+.dvt-sw i { width: 13px; height: 13px; border-radius: 3px; flex: 0 0 auto; }
+.dvt-bar { height: 10px; border-radius: 3px; margin: 2px 0 4px; }
+.dvt-ends { display: flex; justify-content: space-between; font-size: 10px; color: var(--dvt-muted); }
+.dvt-status { margin: 11px 0 0; font-size: 11px; color: var(--dvt-muted); }
+
+.dvt-readout h2 { margin: 0 0 6px; font-size: 13px; font-weight: 600; }
+.dvt-readout table { width: 100%; border-collapse: collapse; font-size: 11px; }
+.dvt-readout td { padding: 2px 0; color: var(--dvt-ink-2); }
+.dvt-readout td + td { text-align: right; color: var(--dvt-ink); font-variant-numeric: tabular-nums; }
+.dvt-readout a { color: #86b6ef; font-size: 11px; display: inline-block; margin-top: 8px; }
+.dvt-hint { margin: 6px 0 0; font-size: 10.5px; color: var(--dvt-muted); }
+.dvt-root .maplibregl-ctrl-attrib { font-size: 10px; }
