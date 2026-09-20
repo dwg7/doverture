@@ -82,6 +82,13 @@ const map = new maplibregl.Map({
   // （cafebabe patterns/maplibre-gl-js-embedding.md）
   hash: 'map'
 });
+// MapLibre のエラーは error イベントにしか出ない。拾わないと全部黙って失敗する。
+map.on('error', (e) => {
+  const err = e && e.error ? e.error : e;
+  console.error('[doverture] MapLibre エラー:', err, e && e.sourceId ? `(source: ${e.sourceId})` : '');
+  fail(`MapLibre エラー${e && e.sourceId ? `（${e.sourceId}）` : ''}`, err);
+});
+
 map.addControl(new maplibregl.NavigationControl({ visualizePitch: false }), 'top-right');
 map.addControl(new maplibregl.ScaleControl({ maxWidth: 120, unit: 'metric' }), 'bottom-right');
 
@@ -200,19 +207,40 @@ map.on('load', async () => {
   $('status').textContent = `${data.rows.length.toLocaleString()} セル・基準 ${String(data.asOf).slice(0, 10)}`;
   step(`セル ${geo.features.length.toLocaleString()} 件を地図に追加しました。描画待ち…`);
 
-  // 本当に描かれたかを地図自身に確かめさせる。0 件なら、追加できていても見えていない。
-  map.once('idle', () => {
-    let drawn = -1;
-    try { drawn = map.queryRenderedFeatures({ layers: ['cells'] }).length; } catch (e) { /* noop */ }
+  /*
+   * 本当に描かれたかを地図自身に確かめさせる。
+   * idle は「保留中のタイルが全部片付く」まで来ないので、来ないこと自体が症状になる。
+   * だから idle と時間切れの両方で見る。
+   */
+  let reported = false;
+  const check = (why) => {
+    if (reported) return;
+    const q = (f, d) => { try { return f(); } catch (e) { return d; } };
+    const drawn = q(() => map.queryRenderedFeatures({ layers: ['cells'] }).length, -1);
+    const inSrc = q(() => map.querySourceFeatures('cells').length, -1);
+    const state = [
+      `契機=${why}`,
+      `z${map.getZoom().toFixed(1)}`,
+      `レイヤー=${map.getLayer('cells') ? 'あり' : 'なし'}`,
+      `ソース=${map.getSource('cells') ? 'あり' : 'なし'}`,
+      `ソース読込済=${q(() => map.isSourceLoaded('cells'), '?')}`,
+      `タイル読込済=${q(() => map.areTilesLoaded(), '?')}`,
+      `map.loaded=${q(() => map.loaded(), '?')}`,
+      `ソース内地物=${inSrc}`,
+      `描画地物=${drawn}`
+    ].join(' / ');
+    console.log('[doverture] 状態: ' + state);
     if (drawn > 0) {
+      reported = true;
       step(`描画 ${drawn.toLocaleString()} 件（画面内）`, 'ok');
       setTimeout(() => { banner.className = 'gone'; }, 4000);
-    } else {
-      fail('セルを追加したのに画面に描かれていません',
-           new Error(`z${map.getZoom().toFixed(1)} / レイヤー ${map.getLayer('cells') ? 'あり' : 'なし'}`
-                     + ` / 不透明度 ${JSON.stringify(map.getPaintProperty('cells', 'fill-opacity'))}`));
+    } else if (why !== 'idle') {
+      fail('セルが画面に描かれていません', new Error(state));
     }
-  });
+  };
+  map.once('idle', () => check('idle'));
+  setTimeout(() => check('3秒'), 3000);
+  setTimeout(() => check('10秒'), 10000);
 
   // 通るだけで出す。クリックを要求すると「どこを押せばいいか」が分からない。
   let last = null;

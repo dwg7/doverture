@@ -15,12 +15,19 @@ t('toGeoJSON が全セルを Feature にする', () => {
   globalThis.__geo = g;
 });
 
-t('各 Feature が閉じた4隅の矩形を持つ', () => {
-  const r = globalThis.__geo.features[0].geometry.coordinates[0];
-  assert.equal(r.length, 5);
-  assert.deepEqual(r[0], r[4]);
-  assert.ok(r[1][0] > r[0][0], '東の辺が西より東にある');
-  assert.ok(r[0][1] > r[2][1], '北の辺が南より北にある');
+t('各 Feature が閉じた4隅の矩形を持ち、外環が反時計回り(RFC 7946)', () => {
+  const g = globalThis.__geo.features;
+  for (const f of [g[0], g[Math.floor(g.length / 2)], g[g.length - 1]]) {
+    const r = f.geometry.coordinates[0];
+    assert.equal(r.length, 5);
+    assert.deepEqual(r[0], r[4]);
+    let a = 0;
+    for (let i = 0; i < r.length - 1; i++) a += r[i][0] * r[i + 1][1] - r[i + 1][0] * r[i][1];
+    assert.ok(a > 0, `外環が時計回り（符号付き面積 ${a}）`);
+    const lons = r.map((p) => p[0]), lats = r.map((p) => p[1]);
+    assert.ok(Math.max(...lons) > Math.min(...lons), '経度に幅がある');
+    assert.ok(Math.max(...lats) > Math.min(...lats), '緯度に高さがある');
+  }
 });
 
 t('矩形が北海道の範囲に収まる', () => {

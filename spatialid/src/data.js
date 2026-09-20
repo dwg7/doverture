@@ -56,7 +56,8 @@ export function toGeoJSON(doc) {
     const w = x2lon(x), e = x2lon(x + 1), n = y2lat(y), s = y2lat(y + 1);
     features[k] = {
       type: 'Feature',
-      geometry: { type: 'Polygon', coordinates: [[[w, n], [e, n], [e, s], [w, s], [w, n]]] },
+      // 外環は反時計回り（RFC 7946）。南西 → 南東 → 北東 → 北西 の順。
+      geometry: { type: 'Polygon', coordinates: [[[w, s], [e, s], [e, n], [w, n], [w, s]]] },
       properties: {
         x, y, code: r[i.code], bv, ov, osm, eab, oth,
         bvArea: r[i.bvArea] ?? 0, ovArea: r[i.ovArea] ?? 0,
