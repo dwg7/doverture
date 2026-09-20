@@ -55,6 +55,16 @@ export default defineConfig({
     outDir: '../docs/spatialid',
     emptyOutDir: true,
     rollupOptions: {
+      // Vite のアプリビルドは既定で preserveEntrySignatures: false ——
+      // エントリを「副作用だけ」とみなして **export を落とす**。
+      // 埋め込み用エントリは mount を公開しないと意味がないので strict にする。
+      preserveEntrySignatures: 'strict',
+      // index.html（スタンドアロン）と embed.js（Open MCT から動的 import する
+      // 埋め込み用エントリ）の2つを出す。中身は同じ panel.js。
+      input: {
+        index: path.resolve(__dirname, 'index.html'),
+        'doverture-panel': path.resolve(__dirname, 'src/embed.js'),
+      },
       output: {
         // ハッシュは使わない（古い index.html が存在しないファイルを指して真っ白に
         // なるのを避ける）。ただし **リテラルの固定名にはしない** ——

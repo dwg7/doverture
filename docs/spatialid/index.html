@@ -4,51 +4,11 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>doverture — 空間ID(z14)パネル</title>
+    <style>html, body, #app { height: 100%; margin: 0; background: #1a1a19; }</style>
     <script type="module" crossorigin src="./assets/index.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index.css">
+    <link rel="modulepreload" crossorigin href="./assets/panel.js">
   </head>
   <body>
-    <div id="map"></div>
-
-    <div id="panel">
-      <h1>doverture<span>北海道 z14 空間IDセル</span></h1>
-
-      <details id="howto" open>
-        <summary>使い方</summary>
-        <table>
-          <tr><th>ズーム</th><th>1セル</th><th>できること</th></tr>
-          <tr><td>z6</td><td>約1px</td><td>全道の模様</td></tr>
-          <tr><td>z8–10</td><td>4–16px</td><td>模様を読む（推奨）</td></tr>
-          <tr><td>z11–13</td><td>32–128px</td><td>セルを押して内訳</td></tr>
-          <tr><td>z14–17</td><td>画面いっぱい</td><td>写真で実物を確認</td></tr>
-        </table>
-        <p>セルは z14 の空間ID（約1.8km四方）。<b>セルの上を通るだけで左下に数字</b>が出ます。
-        建物ゼロのセルは既定で隠しています（全体の約半分）。<br>
-        下図の写真は<b>引くと薄く、寄ると濃く</b>なります——引いているときはセルの色が主役、
-        寄ったときは実物の確認が主役だからです。</p>
-      </details>
-
-      <label for="jump">市区町村へ移動</label>
-      <select id="jump"><option value="">— 選ぶ —</option></select>
-
-      <label for="metric">指標</label>
-      <select id="metric"></select>
-
-      <div id="legend"></div>
-
-      <label for="basemap">下図</label>
-      <select id="basemap">
-        <option value="auto">自動（引くとデータ／寄ると写真）</option>
-        <option value="photo">写真を常に濃く</option>
-        <option value="none">写真なし</option>
-      </select>
-
-      <label class="row"><input type="checkbox" id="showEmpty" /> 建物ゼロのセルも塗る</label>
-
-      <p id="status">読み込み中…</p>
-    </div>
-
-    <div id="readout" hidden></div>
-
+    <div id="app"></div>
   </body>
 </html>

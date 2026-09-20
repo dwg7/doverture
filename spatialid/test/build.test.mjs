@@ -17,8 +17,8 @@ const t = (name, fn) => { fn(); n++; console.log('  ok  ' + name); };
 
 const html = fs.readFileSync(path.join(DIST, 'index.html'), 'utf8');
 const files = fs.readdirSync(path.join(DIST, 'assets'));
-const bundle = fs.readFileSync(
-  path.join(DIST, 'assets', files.find((f) => f.endsWith('.js') && !f.includes('worker'))), 'utf8');
+const jsFiles = files.filter((f) => f.endsWith('.js'));
+const bundle = jsFiles.map((f) => fs.readFileSync(path.join(DIST, 'assets', f), 'utf8')).join('\n');
 
 t('index.html が参照するアセットが全部存在する', () => {
   const refs = [...html.matchAll(/(?:src|href)="\.\/([^"]+)"/g)].map((m) => m[1]);
@@ -64,6 +64,20 @@ t('出力された .mjs が import する相手が全部存在する（依存の
     }
   }
   console.log(`      （${seen.size} 個の .mjs を辿って確認）`);
+});
+
+t('Open MCT が動的 import するパスに、実体がある', () => {
+  // docs/index.html はビルドを持たないので、ここが食い違っても誰も気づかない。
+  const plugin = fs.readFileSync(new URL('../../docs/doverture-map-plugin.js', import.meta.url).pathname, 'utf8');
+  const m = plugin.match(/MODULE\s*=\s*\([^)]*\)\s*\|\|\s*'([^']+)'/);
+  assert.ok(m, 'プラグインから動的 import のパスを読み取れない');
+  const rel = m[1].replace(/^\.\//, '');           // docs/ からの相対
+  const abs = new URL('../../docs/' + rel, import.meta.url).pathname;
+  assert.ok(fs.existsSync(abs), `${m[1]} の実体が無い（${abs}）`);
+  const body = fs.readFileSync(abs, 'utf8');
+  assert.ok(/export\s*\{[^}]*\bas mount\b|export function mount|\bmount\b/.test(body),
+            'エントリが mount を公開していない（preserveEntrySignatures を疑う）');
+  console.log(`      ${m[1]} → ${(fs.statSync(abs).size / 1024).toFixed(0)} KB`);
 });
 
 t('ファイル名にハッシュが入っていない', () => {

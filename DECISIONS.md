@@ -1103,3 +1103,62 @@ Hidenori「MapLibre 表示、もう少しセルを細かく表示した方がい
 | z10 のセル | z12（1,985） | z13（7,309） |
 
 検証は変わらず全ズームでセル数一致・合計一致。
+
+---
+
+## D23 — 空間IDマップを Open MCT のビューとして組み込んだ（2026-09-20）
+
+Hidenori「MapLibre のサイトって、Open MCT のダッシュボードに組み込めないか？
+ただ、大掛かりなサイトなので難しいのであれば無理しなくていい」。
+
+### 構造上の壁と、その越え方
+
+`docs/` は**ビルドなし**（Open MCT を CDN から読む静的構成）。一方パネルは
+**MapLibre GL JS v6 = ESM 専用**で、`<script>` タグでは読めない。
+
+`sas0` はこれを **MapLibre を v5.24.0 に固定**して回避している（v5 は UMD を配っており、
+`<script>` で読める。v6 は 404）。だがこちらは v6 で作ってあるので同じ手は使えない。
+
+**採った解**：ビューを開いたときに**動的 import** する。
+
+```js
+const { mount } = await import('./spatialid/assets/doverture-panel.js');
+panel = mount(hostElement);
+```
+
+ホスト側にバンドラは要らず、1MB のバンドルは**ツリーでこのビューを選ぶまで読まれない**。
+iframe は使わない（sandbox 属性まわりの問題に繰り返し遭遇するため。
+cafebabe `patterns/maplibre-gl-js-embedding.md`、`sas0` の実例）。
+
+### パネルを「載せられる形」に作り直した
+
+- `src/panel.js` — `createPanel(container, opts) -> {map, destroy}`。**DOM を全部ここで作る**
+- `src/main.js` — スタンドアロンのページ用（3行）
+- `src/embed.js` — `mount()` を公開する埋め込み用エントリ
+- `docs/doverture-map-plugin.js` — Open MCT のビュープロバイダ（do のプラグインと同じ作り）
+
+**スタンドアロンのページは壊していない**（同じ `panel.js` を使う）。埋め込みで問題が
+出ても、単体ページは動き続ける。
+
+### 埋め込みで効いた既知の知見
+
+- **CSS を `.dvt-root` 配下に全部閉じた。** ホストと衝突させない。色トークンも
+  `:root` ではなく `.dvt-root` に置く——Open MCT の中では親の色トークンが透明に
+  なることがある（cafebabe、`tabularmaps/do` 由来）
+- **`destroy()` で `map.remove()` を確実に呼ぶ。** 呼ばないとビューを作り直すたびに
+  WebGL コンテキストがリークする（同、`sas0` 由来）
+- **`ResizeObserver` を足した。** ホストが後からサイズを与える場合に、
+  0x0 で初期化された地図を復旧させる（`vientiane-planning-map` 由来の知見の拡張）
+
+### 罠：Vite は既定でエントリの export を落とす
+
+`rollupOptions.input` に埋め込み用エントリを足したのに、出力は
+`export{e9 as c}`（`createPanel` だけ）で **`mount` が消えていた**。
+原因は Vite のアプリビルドが既定で `preserveEntrySignatures: false` ——
+エントリを「副作用だけ」とみなして export を落とす。`'strict'` にして解決。
+
+**これもビルドが何も言わない類の失敗**だった。`test/build.test.mjs` に
+「Open MCT が動的 import するパスに実体があり、`mount` を公開している」という検査を
+足してある（`docs/` 側はビルドを持たないので、食い違っても誰も気づかない）。
+
+`npm test` は 18件（PMTiles 7 / 実タイルでの式 5 / ビルド成果物 6）。
