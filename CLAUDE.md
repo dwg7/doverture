@@ -162,5 +162,5 @@ bvmapをz16で採る以上、z14セル1つあたりbvmap 16タイル + Overture 
 - Overture公式Python CLI：https://github.com/OvertureMaps/overturemaps-py
 - GERSとは：https://docs.overturemaps.org/gers/
 - GERSの一般向け解説：https://overturemaps.org/blog/2025/understanding-overtures-global-entity-reference-system/
-- 基盤地図情報（FGD、参考・比較用）：https://fgd.gsi.go.jp/download/
+- 基盤地図情報（FGD、参考・比較用）：https://fgd.gsi.go.jp/download/ ——**2026-09-20時点、このマシンから `fgd.gsi.go.jp` の DNS が解決せず実在確認できていない**（`www.gsi.go.jp`・`stars.optgeo.org` は解決するので環境全体の遮断ではない）。載せる前に確認する規約に反しているので、使う前に再確認すること
 - 横断知見集約リポジトリ：https://github.com/dwg7/cafebabe
