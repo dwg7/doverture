@@ -73,15 +73,16 @@ export function createPanel(container, opts = {}) {
     el('h1', 'dvt-title', 'doverture<span>北海道 z14 空間IDセル</span>'),
     el('details', 'dvt-howto', `<summary>使い方</summary>
       <table>
-        <tr><th>ズーム</th><th>1セル</th><th>できること</th></tr>
-        <tr><td>z6</td><td>約1px</td><td>全道の模様</td></tr>
-        <tr><td>z8–10</td><td>4–16px</td><td>模様を読む（推奨）</td></tr>
-        <tr><td>z11–13</td><td>32–128px</td><td>セルを押して内訳</td></tr>
-        <tr><td>z14–17</td><td>画面いっぱい</td><td>写真で実物を確認</td></tr>
+        <tr><th>ズーム</th><th>セル</th><th>できること</th></tr>
+        <tr><td>z5–7</td><td>z7–9（14–56km）</td><td>全道の分布</td></tr>
+        <tr><td>z8–11</td><td>z10–13（3.5–28km）</td><td>振興局・市町村の傾向</td></tr>
+        <tr><td>z12–13</td><td>z14（1.8km）</td><td>セルを見て内訳</td></tr>
+        <tr><td>z14–17</td><td>z14（拡大）</td><td>写真で実物を確認</td></tr>
       </table>
-      <p>セルは z14 の空間ID（約1.8km四方）。<b>セルの上を通るだけで数字</b>が出ます。
-      建物ゼロのセルは既定で隠しています（全体の約半分）。<br>
-      下図の写真は<b>引くと薄く、寄ると濃く</b>なります。</p>`)
+      <p><b>どのズームでもセルは約64px</b>——空間IDの階層をそのままタイルの階層に
+      使っているので、引くと粗いセル、寄ると細かいセルに自動で切り替わります。<br>
+      <b>セルの上を通るだけで数字</b>が出ます。建物ゼロのセルは既定で隠しています
+      （全体の約半分）。面は<b>常に透過</b>していて、下の空中写真が透けます。</p>`)
   );
   const mkSelect = (labelText) => {
     panel.appendChild(el('label', null, labelText));
@@ -153,8 +154,8 @@ export function createPanel(container, opts = {}) {
 
   const updateBadge = () => {
     const z = map.getZoom();
-    const { px, what } = zoomHint(z);
-    badge.textContent = `z${z.toFixed(1)}　1セル ${px < 1 ? px.toFixed(1) : Math.round(px)}px　${what}`;
+    const { px, level, what } = zoomHint(z);
+    badge.textContent = `z${z.toFixed(1)}　セル z${level}・${Math.round(px)}px　${what}`;
   };
   map.on('move', updateBadge);
 

@@ -68,10 +68,11 @@ t('市区町村の外接範囲が使える形', () => {
   }
 });
 
-t('zoomHint がズームに応じて変わる', () => {
-  assert.equal(zoomHint(6).what, '全道の模様');
-  assert.equal(zoomHint(10).what, '模様を読む');
-  assert.equal(zoomHint(12).what, 'セルを押して内訳');
+t('zoomHint がセルのレベルとpxを返す', () => {
+  assert.equal(zoomHint(6).level, 8, 'z6 では z8 セル');
+  assert.equal(zoomHint(10).level, 12);
+  assert.equal(zoomHint(12).level, 14, 'z12 以降は z14 で頭打ち');
+  assert.equal(zoomHint(16).level, 14);
   assert.equal(zoomHint(15).what, '写真で実物を確認');
 });
 
