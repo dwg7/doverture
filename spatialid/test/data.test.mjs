@@ -39,7 +39,7 @@ await ta('メタデータに cells レイヤーと必要な属性がある', asy
   const layers = (m.vector_layers || []).map((l) => l.id);
   assert.ok(layers.includes('cells'), `レイヤー: ${layers.join(',')}`);
   const f = m.vector_layers.find((l) => l.id === 'cells').fields;
-  for (const need of ['bv', 'ov', 'osm', 'eab', 'oth', 'code', 'lv']) {
+  for (const need of ['bv', 'ov', 'osm', 'eab', 'oth', 'bvA', 'ovA', 'code', 'lv']) {
     assert.ok(need in f, `属性 ${need} が無い`);
   }
 });
