@@ -122,3 +122,59 @@ if os.path.exists(FLOOR):
               f"  （差 {q([c['ratio'] for c in hi_],.5)-q([c['ratio'] for c in lo_],.5):+.2f}）")
         print(f"    面積比  床低 {q([c['aratio'] for c in lo_],.5):.2f} → 床高 {q([c['aratio'] for c in hi_],.5):.2f}"
               f"  （差 {q([c['aratio'] for c in hi_],.5)-q([c['aratio'] for c in lo_],.5):+.2f}）")
+
+
+# ---- (d) 市区町村単位でも同じことが言えるか ----------------------------------
+# セル単位の結論は、市区町村に畳んだ後もそのまま成り立つとは限らない（集計の水準が
+# 変わると相関は強くも弱くもなる）。ダッシュボードの指標を直す前に、その水準で測る。
+print("\n=== (d) 市区町村単位：都市計画区域の割合と、各指標の関係 ===")
+MUNI = json.load(open(f"{ROOT}/docs/data/municipal.json"))["municipalities"]
+cov_by_code = defaultdict(list)
+for r in csv.DictReader(open(f"{ROOT}/data/hokkaido-z14-census.csv")):
+    cov_by_code[r["code"]].append(a09_coverage(int(r["x"]), int(r["y"]), FEATS, BUCKET))
+# 札幌は区を 01100 に合算してあるので、区のセルも 01100 に寄せる
+for c in list(cov_by_code):
+    if c.startswith("011") and c != "01100":
+        cov_by_code["01100"] += cov_by_code[c]
+
+def rank(v):
+    o = sorted(range(len(v)), key=lambda i: v[i]); r = [0.0] * len(v)
+    i = 0
+    while i < len(o):
+        j = i
+        while j + 1 < len(o) and v[o[j + 1]] == v[o[i]]: j += 1
+        for k in range(i, j + 1): r[o[k]] = (i + j) / 2
+        i = j + 1
+    return r
+def spearman(a, b):
+    ra, rb = rank(a), rank(b); n = len(a)
+    ma, mb = sum(ra) / n, sum(rb) / n
+    cov = sum((x - ma) * (y - mb) for x, y in zip(ra, rb))
+    va = sum((x - ma) ** 2 for x in ra); vb = sum((y - mb) ** 2 for y in rb)
+    return cov / math.sqrt(va * vb)
+
+rows = []
+for code, m in MUNI.items():
+    if code.startswith("011") and code != "01100": continue     # 区は二重計上になるので外す
+    if m["bvmap_n"] < 50 or m["bvmap_area_m2"] <= 0 or code not in cov_by_code: continue
+    cv = cov_by_code[code]
+    rows.append({"code": code, "share": sum(cv) / len(cv),
+                 "count": m["ov_n"] / m["bvmap_n"],
+                 "area": m["ov_area_m2"] / m["bvmap_area_m2"],
+                 "size": m["bvmap_area_m2"] / m["bvmap_n"],
+                 "dens": m["bvmap_n"] / m["area_km2"]})
+print(f"市区町村 {len(rows)}（bvmap 50件以上。札幌は市で1つ）")
+S = [r["share"] for r in rows]
+print(f"\n  都市計画区域の割合との順位相関（ρ）")
+for k, lab in [("count", "件数比 Overture÷bvmap"), ("area", "面積比 Overture÷bvmap"),
+               ("size", "bvmap 平均面積"), ("dens", "bvmap 密度")]:
+    print(f"    {lab:24s} ρ = {spearman(S, [r[k] for r in rows]):+.2f}")
+
+rows.sort(key=lambda r: r["share"])
+t = len(rows) // 3
+print(f"\n  区域の割合で三分割（各 {t} 前後）した中央値")
+print(f"  {'':12s} {'区域の割合':>10} {'件数比':>7} {'面積比':>7} {'平均面積':>8}")
+for lab, g in [("少ない", rows[:t]), ("中くらい", rows[t:2*t]), ("多い", rows[2*t:])]:
+    print(f"  {lab:12s} {q([r['share'] for r in g],.5)*100:>9.1f}% "
+          f"{q([r['count'] for r in g],.5):>7.2f} {q([r['area'] for r in g],.5):>7.2f} "
+          f"{q([r['size'] for r in g],.5):>7.0f}m²")
