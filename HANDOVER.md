@@ -5,10 +5,10 @@ doverture の現在地のスナップショット。記憶ゼロのセッショ�
 `CLAUDE.md`、「何が分かったか」は `README.md`。このファイルは**いま何が動いていて、
 何が分かっていないか**。
 
-## 現在地（2026-09-21）— 公開済み
+## 現在地（2026-09-22）— 公開済み
 
 **https://dwg7.unopengis.org/doverture/** が動いている（GitHub Pages、`main` の `/docs`、
-HTTPS 強制）。PR #1〜#6 はすべてマージ済み。DECISIONS は D32 まで。
+HTTPS 強制）。PR #1〜#8 はすべてマージ済み。DECISIONS は D33 まで。
 
 ```bash
 ./scripts/serve.py          # 手元で見る: http://localhost:8779/
@@ -28,6 +28,9 @@ node scripts/screenshot.mjs out.png "http://localhost:8779/spatialid/#map=6.2/43
   件数比は並べて残してある（D32）
 - **実画面の確認**：slate にブラウザが繋がっていなくても、Chrome があれば
   `scripts/screenshot.mjs` で撮れる（CDP、D31）
+- **手間の痕跡**（D33）：`scripts/effort_traces.py`（キャッシュ全タイルを読む、数分）→
+  `build/effort.json` → `scripts/read_effort.py`。OSM の版数・最終更新年・属性・面積を、
+  bvmap の取得精度と自動化の面積に並べる
 
 ## 次にやると良いこと
 
@@ -45,9 +48,10 @@ node scripts/screenshot.mjs out.png "http://localhost:8779/spatialid/#map=6.2/43
 
    面積で見ると「ほぼ互角」は無く、Overture が1割ほど多い。市街地だけが互角。
    密度による傾きもずっと緩い。**README の主張の組み直しが要る**（未着手）
-2. **「疎な区画の Overture 優勢はほぼ Microsoft 分」（D21）を面積で確かめ直す。**
-   件数での結論なので同じ汚染を受けている可能性がある。ただしセンサスは OSM 由来の
-   **面積**を持っていない（`ov_area_m2` は Overture 合計のみ）ので、採り直しが要る
+2. **「ユーザーは建物データに何を求めているか」の探索を続ける**（D33 の続き）。
+   手元のデータで測れたのは**作る側の手間**（公費・ボランティアの時間・自動化）まで。
+   使う側の需要は bvmap にも taroverture にも記録されていない。この線引きを保ったまま
+   次に何を見るかは Hidenori と相談する（追加データは取りに行かない、が今の条件）
 3. **面積比に残る差の素性。**区域の内外差は件数比 +0.52 → 面積比 +0.11 まで落ちたが、
    残った +0.11 が本当の捉え方の差か、取得精度の残りかは切り分けていない
 4. **Microsoft 優勢の区画を共和町以外でも空中写真で当たる**（D12 の 15/16 誤検出が
@@ -62,6 +66,15 @@ node scripts/screenshot.mjs out.png "http://localhost:8779/spatialid/#map=6.2/43
   採らず比が上がり、内では物置まで採るので下がる。**面積比はその両方を打ち消す**。
   札幌・旭川・北見・釧路などの「bvmap 優勢」は件数比の見かけで、面積では互角
 - **「bvmap 平均面積」は建物の大きさではなく取得の粗さを測っている**（ρ=−0.77、D32）
+- **建物データへの手間は「形を一度描く」にほぼ全部使われている**（D33）。OSM の建物の
+  **95.5% は1版**（描かれたきり）、属性が足されたのは用途 3.6%・名前 0.9%・階数/高さ 0.9%。
+  最終更新は 2016〜2018 に 51.7%、2023 年以降は 6.1%
+- **三者の分担（面積、bvmap=1）**（D33）：OSM は区域の内 0.98・外 0.97 とどこでも bvmap と
+  ほぼ同じ。自動化は外だけ（0.20、内は 0.02）
+- **誰の手も届いていない所は、面で 18.3%・棟数で 1.3%**（D33、棟数は bvmap が粗いので下限）。
+  十勝・根釧・空知の農業地帯に多い
+- **D21「疎な区画の Overture 優勢はほぼ Microsoft 分」は面積でも成り立つ**（D33）。
+  最も疎な2帯で OSM 単独は 0.83・0.92 と bvmap に届かない
 - **共和町の Microsoft 検出は16点中15点が建物でなかった**（D12）
 - **Google Open Buildings は日本にも極東ロシアにも1件も無い**（D6→D9で Microsoft は訂正）
 - **北方領土は別機構**：Microsoft ゼロ、OSM だけで bvmap を上回る（件数比 1.75。
@@ -71,12 +84,16 @@ node scripts/screenshot.mjs out.png "http://localhost:8779/spatialid/#map=6.2/43
 
 ## 分かっていないこと
 
-1. README の結論のうち、件数比に依っているものがどこまで生き残るか（上の 1・2）
-2. Microsoft の誤検出率は共和町固有か、全道的か
-3. 床の崖と区域境界の一致（崖の3分の2は境界をまたがない。z14 では分解能が足りない、D30）
-4. 両ソースの実効鮮度（Overture のメタデータが矛盾、D4）
-5. bvmap と N03 が同じ原典なのに「基本測量成果ではない」とされる件の意味（D5）
-6. `https://fgd.gsi.go.jp/download/` は DNS が解決せず未確認（CLAUDE.md に注記済み）
+1. README の結論のうち、件数比に依っているものがどこまで生き残るか（上の 1。D21 は
+   面積でも生き残った）
+2. **使う側の需要。**bvmap にも taroverture にも利用の記録は無い。OSM に描く人を
+   「必要としている人」の代理とみなすのは仮定（D33）
+3. 2016〜2018 の OSM の波が一括取り込みか手作業の運動か（時刻だけでは区別できない、D33）
+4. Microsoft の誤検出率は共和町固有か、全道的か
+5. 床の崖と区域境界の一致（崖の3分の2は境界をまたがない。z14 では分解能が足りない、D30）
+6. 両ソースの実効鮮度（Overture のメタデータが矛盾、D4）
+7. bvmap と N03 が同じ原典なのに「基本測量成果ではない」とされる件の意味（D5）
+8. `https://fgd.gsi.go.jp/download/` は DNS が解決せず未確認（CLAUDE.md に注記済み）
 
 ## 外部データとキャッシュ（リポジトリには入れない）
 
@@ -87,6 +104,8 @@ node scripts/screenshot.mjs out.png "http://localhost:8779/spatialid/#map=6.2/43
   載せていない（使っているのは分析スクリプトだけ）
 - `build/floor.json`：`scripts/detect_capture_scale.py` の出力（2,500 セルの床）。
   `scripts/check_capture_boundary.py` と `scripts/explain_ratio.py` が読む
+- `build/effort.json`：`scripts/effort_traces.py` の出力（全 27,947 セルの手間の痕跡。
+  ジオメトリは含まない）。`scripts/read_effort.py` が読む
 
 ## 作法（痛い目を見て増えたもの）
 
@@ -102,7 +121,11 @@ node scripts/screenshot.mjs out.png "http://localhost:8779/spatialid/#map=6.2/43
 - **不変条件は結果ではなく、それを保証している構造に置く**（D24、D29 で差し替えた例も）
 - **TileJSON のメタデータを前提にしない。**実際にそのズームのタイルを見る（D3）
 - **「綺麗すぎる数字」は絞り込みを疑い、対照地点で確かめる**（D6→D9）
+- **追加のデータを取りに行く前に、手元のデータの属性を全部見る。**taroverture の
+  `record_id` に OSM の版数が入っていたことで、「人の手間」が新しいデータなしで測れた（D33）
+- **測れたものと測りたいものの距離を書いておく。**手間の痕跡は供給側で、需要そのもの
+  ではない（D33）
 
 これらのうち一般化できるものの初期分は [dwg7/cafebabe#2](https://github.com/dwg7/cafebabe/pull/2)
-に寄稿してマージ済み。D29〜D32 の分（MAUP、参照コーパスの素性、CDP での撮影）は
+に寄稿してマージ済み。D29〜D33 の分（MAUP、参照コーパスの素性、CDP での撮影、手元の属性を先に見る）は
 まだ寄稿していない。
