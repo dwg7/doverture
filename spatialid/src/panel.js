@@ -243,15 +243,7 @@ export function createPanel(container, opts = {}) {
       map.addLayer({ id: 'cells-line', type: 'line', source: 'cells', 'source-layer': SRC_LAYER,
                      paint: { 'line-color': '#1a1a19', 'line-width': 0.4, 'line-opacity': 0.35 }, minzoom: 11 });
       // 建物の輪郭。塗りなしの線だけ——写真の上に重ねて、実物と突き合わせるため。
-      map.addLayer({
-        id: 'bv-outline', type: 'line', source: 'bvmapsrc', 'source-layer': 'BldA',
-        minzoom: FOOTPRINT.minzoom,
-        paint: {
-          'line-color': FOOTPRINT.bvmap.color,
-          'line-width': ['interpolate', ['linear'], ['zoom'], 16, 0.9, 19, 2.0],
-          'line-opacity': 0.95
-        }
-      });
+      // bvmap が Overture の下に隠れないよう、bvmap を**最後に**足して一番上に置く。
       // Overture は出所で線種を分ける。OSM 由来＝人が引いた線は実線、
       // Microsoft・研究データ＝自動検出で誰も検証していないものは点線。
       map.addLayer({
@@ -271,6 +263,17 @@ export function createPanel(container, opts = {}) {
           'line-color': FOOTPRINT.overtureAi.color,
           'line-width': ['interpolate', ['linear'], ['zoom'], 16, 1.4, 19, 2.8],
           'line-dasharray': FOOTPRINT.overtureAi.dash,
+          'line-opacity': 0.95
+        }
+      });
+      // bvmap（国土地理院）の輪郭は一番上。固定参照点なので、Overture に重なって
+      // 隠れると突き合わせができない。
+      map.addLayer({
+        id: 'bv-outline', type: 'line', source: 'bvmapsrc', 'source-layer': 'BldA',
+        minzoom: FOOTPRINT.minzoom,
+        paint: {
+          'line-color': FOOTPRINT.bvmap.color,
+          'line-width': ['interpolate', ['linear'], ['zoom'], 16, 0.9, 19, 2.0],
           'line-opacity': 0.95
         }
       });
